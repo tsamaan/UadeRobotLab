@@ -1,3 +1,4 @@
 {
-    "cmake.sourceDirectory": "/home/tbond/Escritorio/UADE/UadeRobotLab/00SDK/unitree_sdk2"
+    "cmake.sourceDirectory": "/home/tbond/Escritorio/UADE/UadeRobotLab/00SDK/unitree_sdk2",
+    "python.defaultInterpreterPath": "C:\\Users\\tbond\\AppData\\Local\\Programs\\Python\\Python310\\python.exe"
 }
