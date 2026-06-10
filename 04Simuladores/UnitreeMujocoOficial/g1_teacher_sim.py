@@ -151,14 +151,15 @@ class G1TeacherState:
 
     def saludar(self) -> None:
         arm_up = {
-            "right_shoulder_pitch": -1.00,
-            "right_shoulder_roll": -0.90,
+            "right_shoulder_pitch": -0.20,
+            "right_shoulder_roll": -1.80,
             "right_shoulder_yaw": 0.00,
-            "right_elbow": 1.20,
+            "right_elbow": 0.80,
+            "right_wrist_pitch": 0.15,
             "right_wrist_yaw": 0.45,
         }
-        wave_left = arm_up | {"right_wrist_yaw": -0.60, "right_shoulder_yaw": -0.25}
-        wave_right = arm_up | {"right_wrist_yaw": 0.60, "right_shoulder_yaw": 0.25}
+        wave_left = arm_up | {"right_wrist_yaw": -0.65, "right_shoulder_yaw": -0.20}
+        wave_right = arm_up | {"right_wrist_yaw": 0.65, "right_shoulder_yaw": 0.20}
         self.run_pose_sequence(
             "saludar",
             [
