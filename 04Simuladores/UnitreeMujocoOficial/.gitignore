@@ -1,3 +1,5 @@
 unitree_mujoco/
 logs/
 policies/models/
+__pycache__/
+*.pyc

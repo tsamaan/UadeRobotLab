@@ -41,6 +41,82 @@ Si tu interfaz no es `Ethernet`:
 .\run_go2_sim.ps1 -Interface "vEthernet (Default Switch)"
 ```
 
+## 2b. Abrir el simulador G1 en Windows
+
+Para el taller con robot humanoide, usar el launcher de G1:
+
+```powershell
+.\run_g1_sim.ps1
+```
+
+Requisitos en la PC del profesor:
+
+- Python 3.10 disponible como `py -3.10`.
+- Git disponible en `PATH`.
+- Paquetes Python `mujoco`, `pygame` y `unitree_sdk2py` instalados.
+
+El script verifica estos requisitos antes de abrir MuJoCo. Si falta `mujoco` o `pygame`, se pueden instalar con:
+
+```powershell
+py -3.10 -m pip install mujoco pygame
+```
+
+El script configura automaticamente:
+
+- `ROBOT = "g1"`
+- `DOMAIN_ID = 1`
+- una interfaz de red activa de Windows
+- `USE_JOYSTICK = 0`
+- `PRINT_SCENE_INFORMATION = False`
+- `ENABLE_ELASTIC_BAND = False`
+- `HOLD_INITIAL_POSE = True`
+- API local para alumnos en `127.0.0.1:8765`
+
+El launcher usa `g1_teacher_sim.py`, un runner docente que anima directamente la base y las articulaciones del G1. No usa banda elastica por defecto, asi que el humanoide no queda colgado ni sale flotando. El comando `movimiento(...)` traslada la base y activa una marcha didactica simple en las piernas; no es una politica de locomocion realista ni un controlador sim-to-real.
+
+Mientras la ventana de MuJoCo este abierta, los alumnos pueden controlar el robot con `g1_student_api.py`.
+
+Ejemplo:
+
+```python
+from g1_student_api import RobotG1
+
+robot = RobotG1()
+robot.conectar()
+robot.saludar()
+robot.movimiento(adelante=0.20, costado=0.0, giro=0.0, tiempo=2.0)
+robot.movimiento(adelante=0.0, costado=0.0, giro=0.60, tiempo=1.5)
+robot.dar_beso()
+robot.detenerse()
+robot.desconectar()
+```
+
+Plantilla lista para probar:
+
+```powershell
+py -3.10 .\examples\alumnos_g1_api.py
+```
+
+Para verificar dependencias y configuracion sin abrir MuJoCo:
+
+```powershell
+.\run_g1_sim.ps1 -SetupOnly
+```
+
+Si Windows elige mal la placa de red, pasarla manualmente:
+
+```powershell
+.\run_g1_sim.ps1 -Interface "Ethernet"
+.\run_g1_sim.ps1 -Interface "Wi-Fi"
+.\run_g1_sim.ps1 -Interface "vEthernet (Default Switch)"
+```
+
+Si el puerto local `8765` estuviera ocupado:
+
+```powershell
+.\run_g1_sim.ps1 -ApiPort 8766
+```
+
 ## 3. Enviar un comando low-level al simulador
 
 Con el simulador abierto, en otra terminal:
