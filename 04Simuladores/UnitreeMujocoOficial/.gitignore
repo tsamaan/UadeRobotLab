@@ -3,3 +3,4 @@ logs/
 policies/models/
 __pycache__/
 *.pyc
+.venv/

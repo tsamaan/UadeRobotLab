@@ -14,6 +14,8 @@ $ErrorActionPreference = "Stop"
 $scriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 $repoDir = Join-Path $scriptDir "unitree_mujoco"
 $repoUrl = "https://github.com/unitreerobotics/unitree_mujoco.git"
+$venvPython = Join-Path $scriptDir ".venv\Scripts\python.exe"
+$useVenvPython = Test-Path $venvPython
 
 function Require-Command($Name) {
     if (-not (Get-Command $Name -ErrorAction SilentlyContinue)) {
@@ -21,8 +23,16 @@ function Require-Command($Name) {
     }
 }
 
+function Invoke-SimPython($Arguments) {
+    if ($script:useVenvPython) {
+        & $script:venvPython @Arguments
+    } else {
+        & py -3.10 @Arguments
+    }
+}
+
 function Test-PythonImport($ModuleName) {
-    py -3.10 -c "import $ModuleName" *> $null
+    Invoke-SimPython @("-c", "import $ModuleName") *> $null
     return ($LASTEXITCODE -eq 0)
 }
 
@@ -59,7 +69,10 @@ function Set-PythonAssignment($Content, $Name, $Value) {
 }
 
 Require-Command git
-Require-Command py
+
+if (-not $useVenvPython) {
+    Require-Command py
+}
 
 if (-not (Test-PythonImport "mujoco")) {
     throw "Falta el paquete Python 'mujoco'. Instalalo con: py -3.10 -m pip install mujoco"
@@ -160,12 +173,17 @@ Write-Host "     Joystick     : $joystickValue"
 Write-Host "     Elastic band : $elasticBandValue"
 Write-Host "     Pose hold    : $poseHoldValue"
 Write-Host "     API          : 127.0.0.1:$ApiPort"
+if ($useVenvPython) {
+    Write-Host "     Python       : .venv"
+} else {
+    Write-Host "     Python       : py -3.10"
+}
 
 if ($SetupOnly) {
     Push-Location $scriptDir
     try {
-        py -3.10 .\g1_teacher_sim.py --check-model
-        py -3.10 .\g1_teacher_sim.py --check-stability
+        Invoke-SimPython @(".\g1_teacher_sim.py", "--check-model")
+        Invoke-SimPython @(".\g1_teacher_sim.py", "--check-stability")
     } finally {
         Pop-Location
     }
@@ -179,7 +197,7 @@ Write-Host "[INFO] Los alumnos pueden usar g1_student_api.py mientras esta venta
 
 Push-Location $scriptDir
 try {
-    py -3.10 .\g1_teacher_sim.py
+    Invoke-SimPython @(".\g1_teacher_sim.py")
 } finally {
     Pop-Location
 }

@@ -43,10 +43,34 @@ Si tu interfaz no es `Ethernet`:
 
 ## 2b. Abrir el simulador G1 en Windows
 
+### Instalacion inicial
+
+En una PC nueva, ejecutar una sola vez:
+
+```bat
+setup_windows.bat
+```
+
+Ese script:
+
+- clona `unitree_sdk2` y `unitree_sdk2_python` si faltan;
+- crea `.venv` en esta carpeta;
+- instala `requirements.txt`;
+- instala `unitree_sdk2_python` en modo editable;
+- corre `run_g1_sim.ps1 -SetupOnly` para verificar que el modelo G1 carga.
+
+El instalador usa opciones `--trusted-host` para PyPI porque algunas redes institucionales interceptan certificados SSL y bloquean `pip`.
+
 Para el taller con robot humanoide, usar el launcher de G1:
 
 ```powershell
 .\run_g1_sim.ps1
+```
+
+Tambien se puede abrir con doble clic desde Windows:
+
+```bat
+abrir_g1_sim.bat
 ```
 
 Requisitos en la PC del profesor:
@@ -61,6 +85,8 @@ El script verifica estos requisitos antes de abrir MuJoCo. Si falta `mujoco` o `
 py -3.10 -m pip install mujoco pygame
 ```
 
+Si se uso `setup_windows.bat`, no hace falta instalar esto a mano: queda instalado en `.venv`.
+
 El script configura automaticamente:
 
 - `ROBOT = "g1"`
@@ -72,7 +98,7 @@ El script configura automaticamente:
 - `HOLD_INITIAL_POSE = True`
 - API local para alumnos en `127.0.0.1:8765`
 
-El launcher usa `g1_teacher_sim.py`, un runner docente que anima directamente la base y las articulaciones del G1. No usa banda elastica por defecto, asi que el humanoide no queda colgado ni sale flotando. El comando `movimiento(...)` traslada la base y activa una marcha didactica simple en las piernas; no es una politica de locomocion realista ni un controlador sim-to-real.
+Estado actual: esta version del G1 es visual/cinematica para programacion secuencial. El launcher usa `g1_teacher_sim.py`, un runner docente que anima directamente la base y las articulaciones del G1. No usa banda elastica por defecto, asi que el humanoide no queda colgado ni sale flotando. El comando `movimiento(...)` traslada la base y activa una marcha didactica simple en las piernas; no es una politica de locomocion realista ni un controlador sim-to-real.
 
 Mientras la ventana de MuJoCo este abierta, los alumnos pueden controlar el robot con `g1_student_api.py`.
 
@@ -92,6 +118,21 @@ robot.desconectar()
 ```
 
 Plantilla lista para probar:
+
+```powershell
+.\.venv\Scripts\python.exe .\examples\ejemplo_g1_simple.py
+```
+
+La plantilla hace:
+
+- conecta con el simulador;
+- gira durante unos segundos;
+- saluda;
+- camina hacia adelante;
+- da un beso;
+- se detiene y desconecta.
+
+Tambien hay una plantilla editable para alumnos:
 
 ```powershell
 py -3.10 .\examples\alumnos_g1_api.py
