@@ -15,6 +15,8 @@
   │  robot.BalanceStand()   → Modo balance                 │
   ├─ Movimiento ───────────────────────────────────────────┤
   │  mover(robot, adelante, costado, giro, duracion)       │
+  │  ⚠ En C++ siempre escribir los 4 valores en orden:    │
+  │     mover(robot, 0.3f, 0.0f, 0.0f, 2.0f)              │
   │    adelante : +avanza / -retrocede  (recomendado ≤ 0.5)│
   │    costado  : +izquierda / -derecha (recomendado ≤ 0.3)│
   │    giro     : +gira izq / -gira der (recomendado ≤ 0.5)│
@@ -27,7 +29,6 @@
   │  robot.Dance1()         → Baile 1                      │
   │  robot.Dance2()         → Baile 2                      │
   │  robot.FrontJump()      → Salto hacia adelante         │
-  │  robot.FrontFlip()      → Salto mortal adelante        │
   │  robot.Scrape()         → Rasca el piso                │
   └────────────────────────────────────────────────────────┘
   UTILIDADES:
@@ -69,6 +70,10 @@ void mover(SportClient& robot,
            float giro     = 0.0f,
            float duracion = 1.0f)
 {
+    std::cout << "[MOVER] adelante=" << adelante
+              << " costado=" << costado
+              << " giro=" << giro
+              << " duracion=" << duracion << "s" << std::endl;
     auto inicio = std::chrono::steady_clock::now();
     while (true) {
         float elapsed = std::chrono::duration<float>(
@@ -79,6 +84,7 @@ void mover(SportClient& robot,
         std::this_thread::sleep_for(std::chrono::milliseconds(50));
     }
     robot.StopMove();
+    std::cout << "[MOVER] Movimiento terminado." << std::endl;
 }
 
 /** Pausa la ejecución del programa. */
@@ -96,14 +102,11 @@ void mi_programa(SportClient& robot)
 {
     // ── Escribí tu código aquí ────────────────────────────────
 
-    robot.StandUp();
-    esperar(2.0f);
-    robot.BalanceStand();
-    robot.Stretch();
-    esperar(7.0f);
-    mover(robot, /*adelante=*/0.2f, /*duracion=*/2.0f);
-    esperar(5.0f);
-
+  robot.BackFlip();
+    esperar(3.0f);
+ 
+    
+ 
     // ─────────────────────────────────────────────────────────
 }
 

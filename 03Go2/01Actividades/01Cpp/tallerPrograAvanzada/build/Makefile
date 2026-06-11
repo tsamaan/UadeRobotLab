@@ -117,24 +117,24 @@ depend:
 .PHONY : depend
 
 #=============================================================================
-# Target rules for targets named go2_taller
+# Target rules for targets named taller
 
 # Build rule for target.
-go2_taller: cmake_check_build_system
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/Makefile2 go2_taller
-.PHONY : go2_taller
+taller: cmake_check_build_system
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/Makefile2 taller
+.PHONY : taller
 
 # fast build rule for target.
-go2_taller/fast:
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/go2_taller.dir/build.make CMakeFiles/go2_taller.dir/build
-.PHONY : go2_taller/fast
+taller/fast:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/taller.dir/build.make CMakeFiles/taller.dir/build
+.PHONY : taller/fast
 
 taller.o: taller.cpp.o
 .PHONY : taller.o
 
 # target to build an object file
 taller.cpp.o:
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/go2_taller.dir/build.make CMakeFiles/go2_taller.dir/taller.cpp.o
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/taller.dir/build.make CMakeFiles/taller.dir/taller.cpp.o
 .PHONY : taller.cpp.o
 
 taller.i: taller.cpp.i
@@ -142,7 +142,7 @@ taller.i: taller.cpp.i
 
 # target to preprocess a source file
 taller.cpp.i:
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/go2_taller.dir/build.make CMakeFiles/go2_taller.dir/taller.cpp.i
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/taller.dir/build.make CMakeFiles/taller.dir/taller.cpp.i
 .PHONY : taller.cpp.i
 
 taller.s: taller.cpp.s
@@ -150,7 +150,7 @@ taller.s: taller.cpp.s
 
 # target to generate assembly for a file
 taller.cpp.s:
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/go2_taller.dir/build.make CMakeFiles/go2_taller.dir/taller.cpp.s
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/taller.dir/build.make CMakeFiles/taller.dir/taller.cpp.s
 .PHONY : taller.cpp.s
 
 # Help Target
@@ -161,7 +161,7 @@ help:
 	@echo "... depend"
 	@echo "... edit_cache"
 	@echo "... rebuild_cache"
-	@echo "... go2_taller"
+	@echo "... taller"
 	@echo "... taller.o"
 	@echo "... taller.i"
 	@echo "... taller.s"

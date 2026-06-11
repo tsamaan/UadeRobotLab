@@ -30,9 +30,9 @@ if(NOT UNITREE_SDK2_LIB)
     message(FATAL_ERROR "No se encontró libunitree_sdk2 en ${SDK_LIB_DIR}")
 endif()
 
-add_executable(go2_taller taller.cpp)
+add_executable(taller taller.cpp)
 
-target_link_libraries(go2_taller
+target_link_libraries(taller
     ${UNITREE_SDK2_LIB}
     ${DDSCXX_LIB}
     ${DDSC_LIB}
@@ -40,7 +40,7 @@ target_link_libraries(go2_taller
 )
 
 # RPATH para que encuentre las .so en tiempo de ejecución
-set_target_properties(go2_taller PROPERTIES
+set_target_properties(taller PROPERTIES
     BUILD_RPATH "${UNITREE_SDK_PATH}/thirdparty/lib/${SDK_ARCH}"
     INSTALL_RPATH "${UNITREE_SDK_PATH}/thirdparty/lib/${SDK_ARCH}"
 )

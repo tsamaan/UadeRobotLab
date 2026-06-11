@@ -1,3 +1,3 @@
-/home/tbond/Escritorio/UADE/UadeRobotLab/03Go2/01Actividades/01Cpp/tallerPrograAvanzada/build/CMakeFiles/go2_taller.dir
+/home/tbond/Escritorio/UADE/UadeRobotLab/03Go2/01Actividades/01Cpp/tallerPrograAvanzada/build/CMakeFiles/taller.dir
 /home/tbond/Escritorio/UADE/UadeRobotLab/03Go2/01Actividades/01Cpp/tallerPrograAvanzada/build/CMakeFiles/edit_cache.dir
 /home/tbond/Escritorio/UADE/UadeRobotLab/03Go2/01Actividades/01Cpp/tallerPrograAvanzada/build/CMakeFiles/rebuild_cache.dir

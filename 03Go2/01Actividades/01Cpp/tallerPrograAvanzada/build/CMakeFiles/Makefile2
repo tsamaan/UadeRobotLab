@@ -63,7 +63,7 @@ CMAKE_BINARY_DIR = /home/tbond/Escritorio/UADE/UadeRobotLab/03Go2/01Actividades/
 # Directory level rules for the build root directory
 
 # The main recursive "all" target.
-all: CMakeFiles/go2_taller.dir/all
+all: CMakeFiles/taller.dir/all
 .PHONY : all
 
 # The main recursive "preinstall" target.
@@ -71,34 +71,34 @@ preinstall:
 .PHONY : preinstall
 
 # The main recursive "clean" target.
-clean: CMakeFiles/go2_taller.dir/clean
+clean: CMakeFiles/taller.dir/clean
 .PHONY : clean
 
 #=============================================================================
-# Target rules for target CMakeFiles/go2_taller.dir
+# Target rules for target CMakeFiles/taller.dir
 
 # All Build rule for target.
-CMakeFiles/go2_taller.dir/all:
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/go2_taller.dir/build.make CMakeFiles/go2_taller.dir/depend
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/go2_taller.dir/build.make CMakeFiles/go2_taller.dir/build
-	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --progress-dir=/home/tbond/Escritorio/UADE/UadeRobotLab/03Go2/01Actividades/01Cpp/tallerPrograAvanzada/build/CMakeFiles --progress-num=1,2 "Built target go2_taller"
-.PHONY : CMakeFiles/go2_taller.dir/all
+CMakeFiles/taller.dir/all:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/taller.dir/build.make CMakeFiles/taller.dir/depend
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/taller.dir/build.make CMakeFiles/taller.dir/build
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --progress-dir=/home/tbond/Escritorio/UADE/UadeRobotLab/03Go2/01Actividades/01Cpp/tallerPrograAvanzada/build/CMakeFiles --progress-num=1,2 "Built target taller"
+.PHONY : CMakeFiles/taller.dir/all
 
 # Build rule for subdir invocation for target.
-CMakeFiles/go2_taller.dir/rule: cmake_check_build_system
+CMakeFiles/taller.dir/rule: cmake_check_build_system
 	$(CMAKE_COMMAND) -E cmake_progress_start /home/tbond/Escritorio/UADE/UadeRobotLab/03Go2/01Actividades/01Cpp/tallerPrograAvanzada/build/CMakeFiles 2
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/Makefile2 CMakeFiles/go2_taller.dir/all
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/Makefile2 CMakeFiles/taller.dir/all
 	$(CMAKE_COMMAND) -E cmake_progress_start /home/tbond/Escritorio/UADE/UadeRobotLab/03Go2/01Actividades/01Cpp/tallerPrograAvanzada/build/CMakeFiles 0
-.PHONY : CMakeFiles/go2_taller.dir/rule
+.PHONY : CMakeFiles/taller.dir/rule
 
 # Convenience name for target.
-go2_taller: CMakeFiles/go2_taller.dir/rule
-.PHONY : go2_taller
+taller: CMakeFiles/taller.dir/rule
+.PHONY : taller
 
 # clean rule for target.
-CMakeFiles/go2_taller.dir/clean:
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/go2_taller.dir/build.make CMakeFiles/go2_taller.dir/clean
-.PHONY : CMakeFiles/go2_taller.dir/clean
+CMakeFiles/taller.dir/clean:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/taller.dir/build.make CMakeFiles/taller.dir/clean
+.PHONY : CMakeFiles/taller.dir/clean
 
 #=============================================================================
 # Special targets to cleanup operation of make.
