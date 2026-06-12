@@ -158,6 +158,130 @@ Si el puerto local `8765` estuviera ocupado:
 .\run_g1_sim.ps1 -ApiPort 8766
 ```
 
+## 2c. Abrir el simulador G1 en Linux
+
+Estos scripts estan pensados para Ubuntu/Debian o distribuciones compatibles. En Linux se usa `pyenv` para fijar exactamente Python `3.10.14` y un entorno virtual local `.venv` dentro de esta carpeta.
+
+### Dependencias del sistema
+
+En una PC nueva, instalar primero herramientas de compilacion, Git y la libreria nativa de CycloneDDS:
+
+```bash
+sudo apt update
+sudo apt install -y \
+  build-essential curl git cmake pkg-config \
+  libssl-dev zlib1g-dev libbz2-dev libreadline-dev libsqlite3-dev \
+  libncursesw5-dev xz-utils tk-dev libxml2-dev libxmlsec1-dev \
+  libffi-dev liblzma-dev \
+  cyclonedds-dev
+```
+
+Si `pyenv` no esta instalado:
+
+```bash
+curl https://pyenv.run | bash
+```
+
+Agregar `pyenv` al shell. Para Bash:
+
+```bash
+cat <<'EOF' >> ~/.bashrc
+export PYENV_ROOT="$HOME/.pyenv"
+command -v pyenv >/dev/null || export PATH="$PYENV_ROOT/bin:$PATH"
+eval "$(pyenv init -)"
+EOF
+exec "$SHELL"
+```
+
+Para Zsh, usar el mismo bloque pero en `~/.zshrc`.
+
+Instalar Python `3.10.14` con `pyenv`:
+
+```bash
+pyenv install 3.10.14
+```
+
+### Instalacion inicial
+
+Desde esta carpeta:
+
+```bash
+cd 04Simuladores/UnitreeMujocoOficial
+chmod +x setup_linux.sh run_g1_sim.sh abrir_g1_sim.sh
+./setup_linux.sh
+```
+
+Ese script:
+
+- clona `unitree_sdk2` y `unitree_sdk2_python` en `../../00SDK/` si faltan;
+- verifica que `pyenv` tenga Python `3.10.14`;
+- crea `.venv` con Python `3.10.14`;
+- instala `requirements.txt`;
+- instala `unitree_sdk2_python` en modo editable;
+- verifica que CycloneDDS nativo este disponible;
+- corre `run_g1_sim.sh --setup-only` para validar el modelo G1 sin abrir MuJoCo.
+
+Si ya existia `.venv` pero fue creado con otra version de Python, borrarlo y repetir el setup:
+
+```bash
+rm -rf .venv
+./setup_linux.sh
+```
+
+### Uso diario
+
+Para abrir el simulador G1:
+
+```bash
+./run_g1_sim.sh
+```
+
+Tambien se puede usar el launcher corto:
+
+```bash
+./abrir_g1_sim.sh
+```
+
+En Linux local la interfaz DDS por defecto es `lo`. Si necesitas usar otra interfaz:
+
+```bash
+./run_g1_sim.sh --interface lo
+./run_g1_sim.sh --interface eth0
+./run_g1_sim.sh --interface wlan0
+```
+
+Para verificar dependencias y configuracion sin abrir MuJoCo:
+
+```bash
+./run_g1_sim.sh --setup-only
+```
+
+Si el puerto local `8765` estuviera ocupado:
+
+```bash
+./run_g1_sim.sh --api-port 8766
+```
+
+Con el simulador abierto, en otra terminal se puede probar la API de alumnos:
+
+```bash
+./.venv/bin/python examples/ejemplo_g1_simple.py
+```
+
+O ejecutar la plantilla editable:
+
+```bash
+./.venv/bin/python examples/alumnos_g1_api.py
+```
+
+Si alguna instalacion manual hace falta, activar el entorno y usar siempre el Python de `.venv`:
+
+```bash
+source .venv/bin/activate
+python -m pip install -r requirements.txt
+python -m pip install -e ../../00SDK/unitree_sdk2_python
+```
+
 ## 3. Enviar un comando low-level al simulador
 
 Con el simulador abierto, en otra terminal:
