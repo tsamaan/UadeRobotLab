@@ -120,15 +120,34 @@ find_pyenv() {
 }
 
 ensure_pyenv_python() {
-    PYENV_CMD="$(find_pyenv)"
+    local pyenv_root
+    local version_python
+    local actual_version
 
-    if ! "$PYENV_CMD" versions --bare | grep -qx "$PYENV_VERSION_REQUIRED"; then
+    PYENV_CMD="$(find_pyenv)"
+    pyenv_root="$("$PYENV_CMD" root)"
+    version_python="$pyenv_root/versions/$PYENV_VERSION_REQUIRED/bin/python"
+
+    if [[ ! -x "$version_python" ]]; then
         echo "[ERROR] pyenv no tiene instalada la version $PYENV_VERSION_REQUIRED." >&2
         echo "        Ejecuta: pyenv install $PYENV_VERSION_REQUIRED" >&2
         exit 1
     fi
 
     export PYENV_VERSION="$PYENV_VERSION_REQUIRED"
+    actual_version="$("$PYENV_CMD" exec python -c 'import platform; print(platform.python_version())')"
+    if [[ "$actual_version" != "$PYENV_VERSION_REQUIRED" ]]; then
+        echo "[ERROR] pyenv encontro Python $actual_version, pero este proyecto requiere $PYENV_VERSION_REQUIRED." >&2
+        echo "        Revisa: $version_python" >&2
+        exit 1
+    fi
+
+    if [[ ! -f "$SCRIPT_DIR/.python-version" ]] || [[ "$(<"$SCRIPT_DIR/.python-version")" != "$PYENV_VERSION_REQUIRED" ]]; then
+        echo "[INFO] Configurando pyenv local $PYENV_VERSION_REQUIRED..."
+        (cd "$SCRIPT_DIR" && "$PYENV_CMD" local "$PYENV_VERSION_REQUIRED")
+    else
+        echo "[OK] pyenv local $PYENV_VERSION_REQUIRED configurado."
+    fi
 }
 
 ensure_venv_python_version() {
