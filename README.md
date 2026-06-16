@@ -7,6 +7,10 @@ Laboratorio UADE para robots fisicos, simuladores, SDKs, actividades y proyectos
 - `00SDK/unitree_sdk2`: SDK oficial C++ de Unitree.
 - `00SDK/unitree_sdk2_python`: SDK oficial Python de Unitree.
 
+## Investigacion
+
+- `01Investigacion/capturadorVideoLidar`: capturador de camara frontal y LiDAR del Go2, con modo demo y script para generar un paquete `.exe` portable en Windows.
+
 ## Simuladores
 
 - `04Simuladores/UnitreeMujocoOficial`: integracion recomendada con el simulador oficial `unitreerobotics/unitree_mujoco`.
