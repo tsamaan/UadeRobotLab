@@ -21,15 +21,26 @@ En las pruebas de laboratorio el robot respondio en `192.168.123.18` y `192.168.
 
 ## Uso desde codigo fuente
 
+La interfaz grafica se abre sin parametros:
+
 ```powershell
 cd 01Investigacion\capturadorVideoLidar
-python main.py --mode both --interface Ethernet --duration 10 --fps 10
+python main.py
 ```
 
-Si se abre sin parametros, el programa pregunta los datos necesarios:
+Desde la ventana se puede conectar al robot, ver la camara frontal, ver la nube LiDAR en planta y guardar video/LiDAR en la carpeta de salida.
+
+El modo consola sigue disponible con `--console`:
 
 ```powershell
-python main.py
+cd 01Investigacion\capturadorVideoLidar
+python main.py --console --mode both --interface Ethernet --duration 10 --fps 10
+```
+
+Modo consola interactivo:
+
+```powershell
+python main.py --console
 ```
 
 Para ver interfaces de red:
@@ -41,7 +52,13 @@ python main.py --list-interfaces
 Prueba sin robot:
 
 ```powershell
-python main.py --demo --mode both --duration 3 --fps 3
+python main.py --console --demo --mode both --duration 3 --fps 3
+```
+
+Prueba grafica sin robot:
+
+```powershell
+python main.py --gui --demo
 ```
 
 ## Archivos de salida
@@ -107,7 +124,11 @@ Enviar ese zip. La otra persona lo descomprime y ejecuta:
 CapturadorVideoLidar.exe
 ```
 
-El programa abre una consola interactiva para elegir interfaz, duracion, camara/LiDAR y carpeta de salida.
+El programa abre una ventana grafica. Para usar el modo consola desde el `.exe`, ejecutar:
+
+```powershell
+CapturadorVideoLidar.exe --console
+```
 
 ## Prueba real realizada
 
