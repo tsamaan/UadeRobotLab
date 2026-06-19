@@ -4,6 +4,7 @@ import argparse
 import math
 import subprocess
 import sys
+import tempfile
 import threading
 import time
 from collections import Counter
@@ -23,6 +24,7 @@ from PySide6.QtWidgets import (
     QLabel,
     QLineEdit,
     QMainWindow,
+    QMessageBox,
     QPushButton,
     QSizePolicy,
     QSplitter,
@@ -49,6 +51,10 @@ from .topics import (
     suggested_topic_text,
 )
 from .utils import ensure_dir, list_network_interfaces, timestamp_slug, value, write_json
+
+
+ROBOT_NETWORK_IP = "192.168.123.222"
+ROBOT_NETWORK_MASK = "255.255.255.0"
 
 
 def default_output_dir() -> Path:
@@ -799,6 +805,9 @@ class MainWindow(QMainWindow):
         self.demo_check = QCheckBox("Demo")
         self.demo_check.setChecked(self.demo_default)
 
+        self.network_button = QPushButton("Configurar red robot")
+        self.network_button.clicked.connect(self._configure_robot_network)
+
         self.start_button = QPushButton("Conectar")
         self.start_button.clicked.connect(self.start_capture)
         self.stop_button = QPushButton("Detener")
@@ -836,6 +845,7 @@ class MainWindow(QMainWindow):
 
         button_row = QHBoxLayout()
         for button in (
+            self.network_button,
             self.start_button,
             self.stop_button,
             self.video_record_button,
@@ -953,6 +963,124 @@ class MainWindow(QMainWindow):
         self.camera_topic_edit.setText(suggested_topic_text(robot_key, "camera"))
         self.topic_edit.setText(suggested_topic_text(robot_key, "lidar"))
 
+    def _configure_robot_network(self) -> None:
+        if sys.platform != "win32":
+            QMessageBox.warning(
+                self,
+                "Configurar red",
+                "La configuracion automatica de IP esta preparada para Windows.",
+            )
+            return
+        if self.camera_worker is not None or self.lidar_worker is not None:
+            QMessageBox.information(
+                self,
+                "Configurar red",
+                "Detene la captura antes de cambiar la configuracion de red.",
+            )
+            return
+
+        interface = self._network_interface_for_config()
+        if not interface:
+            QMessageBox.warning(
+                self,
+                "Configurar red",
+                "No encontre una interfaz Ethernet. Conecta el cable o elegi la interfaz manualmente.",
+            )
+            return
+
+        answer = QMessageBox.question(
+            self,
+            "Configurar red robot",
+            (
+                f"Se configurara la interfaz '{interface}' con:\n\n"
+                f"IP: {ROBOT_NETWORK_IP}\n"
+                f"Mascara: {ROBOT_NETWORK_MASK}\n\n"
+                "Windows va a pedir permisos de administrador. Continuar?"
+            ),
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            QMessageBox.StandardButton.Yes,
+        )
+        if answer != QMessageBox.StandardButton.Yes:
+            return
+
+        try:
+            script_path = self._write_network_config_script(interface)
+            powershell_command = (
+                "Start-Process -FilePath "
+                f"{self._powershell_quote(str(script_path))} "
+                "-Verb RunAs -Wait"
+            )
+            creationflags = getattr(subprocess, "CREATE_NO_WINDOW", 0)
+            subprocess.Popen(
+                [
+                    "powershell.exe",
+                    "-NoProfile",
+                    "-ExecutionPolicy",
+                    "Bypass",
+                    "-Command",
+                    powershell_command,
+                ],
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+                creationflags=creationflags,
+            )
+        except Exception as exc:
+            QMessageBox.critical(self, "Configurar red", f"No pude iniciar la configuracion:\n{exc}")
+            return
+
+        self._show_status(
+            f"Configurando {interface} como {ROBOT_NETWORK_IP}. Acepta el permiso de administrador de Windows."
+        )
+
+    def _network_interface_for_config(self) -> str | None:
+        selected = self.interface_combo.currentText().strip()
+        if selected and selected != "Auto":
+            return selected
+
+        interfaces = list_network_interfaces()
+        for name in interfaces:
+            if name.lower() == "ethernet":
+                return name
+        for name in interfaces:
+            lowered = name.lower()
+            if "ethernet" in lowered and "wi-fi" not in lowered and "wifi" not in lowered:
+                return name
+        return interfaces[0] if interfaces else None
+
+    @staticmethod
+    def _powershell_quote(text: str) -> str:
+        return "'" + text.replace("'", "''") + "'"
+
+    @staticmethod
+    def _batch_quote(text: str) -> str:
+        return '"' + text.replace('"', '""') + '"'
+
+    def _write_network_config_script(self, interface: str) -> Path:
+        temp_dir = Path(tempfile.gettempdir())
+        script_path = temp_dir / f"configurar_red_robot_{timestamp_slug()}.cmd"
+        interface_arg = self._batch_quote(interface)
+        script = "\r\n".join(
+            [
+                "@echo off",
+                "echo Configurando red para robot Unitree...",
+                (
+                    "netsh interface ip set address "
+                    f"name={interface_arg} static {ROBOT_NETWORK_IP} {ROBOT_NETWORK_MASK}"
+                ),
+                "if errorlevel 1 (",
+                "  echo.",
+                "  echo No se pudo configurar la interfaz. Verifica el nombre o ejecuta como administrador.",
+                "  pause",
+                "  exit /b 1",
+                ")",
+                "echo.",
+                f"echo Listo: {interface} => {ROBOT_NETWORK_IP} / {ROBOT_NETWORK_MASK}",
+                "timeout /t 2 >nul",
+            ]
+        )
+        script_path.write_text(script, encoding="ascii")
+        return script_path
+
     def _choose_output_dir(self) -> None:
         selected = QFileDialog.getExistingDirectory(self, "Carpeta de salida", self.output_edit.text())
         if selected:
@@ -1045,6 +1173,7 @@ class MainWindow(QMainWindow):
         self._show_status("Captura detenida.")
 
     def _set_running(self, running: bool) -> None:
+        self.network_button.setEnabled(not running)
         self.start_button.setEnabled(not running)
         self.stop_button.setEnabled(running)
         self.video_record_button.setEnabled(running and self.camera_worker is not None)

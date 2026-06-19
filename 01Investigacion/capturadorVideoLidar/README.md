@@ -17,6 +17,8 @@ IP:      192.168.123.222
 Mascara: 255.255.255.0
 ```
 
+La ventana incluye el boton `Configurar red robot`, que en Windows intenta aplicar esa IP automaticamente sobre la interfaz Ethernet seleccionada. Windows va a pedir permisos de administrador; aceptar el aviso de UAC y luego conectar desde la app.
+
 En las pruebas de laboratorio el robot respondio en `192.168.123.18` y `192.168.123.161`, usando la interfaz de Windows llamada `Ethernet`.
 
 ## Uso desde codigo fuente
