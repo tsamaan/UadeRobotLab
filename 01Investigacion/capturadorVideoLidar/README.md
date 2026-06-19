@@ -1,10 +1,10 @@
-# Capturador Video/LiDAR Unitree Go2
+# Capturador Video/LiDAR Unitree Go2 / G1 EDU
 
 Herramienta para tomar una ventana corta de datos del robot y dejar archivos listos para procesar con algoritmos externos o IA.
 
 ## Que captura
 
-- Camara frontal Go2: en el robot real escucha `rt/frontvideostream` y guarda `front_camera.h264`; si `ffmpeg` esta disponible tambien arma `front_camera.mp4`.
+- Camara frontal Unitree: en Go2 y G1 EDU escucha `rt/frontvideostream` y guarda `front_camera.h264`; si `ffmpeg` esta disponible tambien arma `front_camera.mp4`.
 - Radar/LiDAR UTLiDAR: escucha un topico DDS `PointCloud2` y exporta `.pcd`, `.csv`, `.bin` y metadatos `.json`.
 - Modo demo: genera datos sinteticos sin robot para probar el flujo.
 
@@ -28,8 +28,17 @@ cd 01Investigacion\capturadorVideoLidar
 python main.py
 ```
 
-Desde la ventana se puede conectar al robot, ver la camara frontal, ver la nube LiDAR en planta y guardar video/LiDAR en la carpeta de salida.
+Desde la ventana se puede elegir **Go2**, **G1 EDU** o **Auto**, conectar al robot, ver la camara frontal, ver la nube LiDAR en planta y guardar video/LiDAR en la carpeta de salida.
 Por defecto la salida queda en `Documentos\CapturadorVideoLidar`; el boton `Abrir salida` abre la carpeta de la sesion actual. `Guardar LiDAR` exporta nubes `.pcd`, `.csv`, `.bin`, `.json` y al detener tambien guarda una imagen `.png` del mapa. `Nube actual` guarda una captura puntual de la nube y del mapa.
+
+Para **G1 EDU**, dejar los topicos en `Auto`. La app descubre los topicos DDS publicados por el robot y prioriza:
+
+```text
+Camara: rt/frontvideostream
+LiDAR:  rt/utlidar/cloud_livox_mid360
+```
+
+Si una version del robot publica con otro nombre, se puede escribir el topico manualmente en la ventana antes de conectar.
 
 El modo consola sigue disponible con `--console`:
 
@@ -85,10 +94,16 @@ captures/<fecha>/
 
 ## Topicos LiDAR
 
-El topico por defecto es:
+El topico por defecto en Go2 es:
 
 ```text
 rt/utlidar/cloud
+```
+
+En G1 EDU se usa normalmente:
+
+```text
+rt/utlidar/cloud_livox_mid360
 ```
 
 Si en el robot aparece con otro nombre, usar:
@@ -132,13 +147,12 @@ El programa abre una ventana grafica. Para usar el modo consola desde el `.exe`,
 CapturadorVideoLidar.exe --console
 ```
 
-## Prueba real realizada
+## Pruebas reales realizadas
 
-Con el robot conectado por RJ45 y la placa `Ethernet` en `192.168.123.222`, se verifico:
+Con robots conectados por RJ45 y la placa `Ethernet` en `192.168.123.222`, se verifico:
 
-- Descubrimiento DDS del robot.
-- Captura LiDAR desde `rt/utlidar/cloud`: nubes de 1440 puntos exportadas a `.pcd`, `.csv`, `.bin` y `.json`.
-- Captura de camara desde `rt/frontvideostream`: stream H.264 1280x720 convertido a `.mp4` cuando `ffmpeg` esta disponible.
+- Go2: descubrimiento DDS, captura LiDAR desde `rt/utlidar/cloud` y captura de camara desde `rt/frontvideostream`.
+- G1 EDU: descubrimiento DDS, camara desde `rt/frontvideostream` y nube LiDAR desde `rt/utlidar/cloud_livox_mid360` con unas 20.000 muestras por nube en la prueba de laboratorio.
 
 ## Nota sobre ESP32CAM
 

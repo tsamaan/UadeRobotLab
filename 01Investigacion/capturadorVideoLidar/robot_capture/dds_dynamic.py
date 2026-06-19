@@ -7,6 +7,36 @@ from typing import Any
 from .sdk import cyclonedds_config
 
 
+def discover_topic_publications(interface: str | None, runtime_s: float = 4.0) -> list[dict[str, Any]]:
+    from cyclonedds.builtin import BuiltinDataReader, BuiltinTopicDcpsPublication
+    from cyclonedds.core import InstanceState, ReadCondition, SampleState, ViewState
+    from cyclonedds.domain import DomainParticipant
+
+    os.environ["CYCLONEDDS_URI"] = cyclonedds_config(interface)
+    participant = DomainParticipant(0)
+    publication_reader = BuiltinDataReader(participant, BuiltinTopicDcpsPublication)
+    publication_condition = ReadCondition(
+        publication_reader,
+        SampleState.NotRead | ViewState.Any | InstanceState.Alive,
+    )
+
+    found: dict[str, dict[str, Any]] = {}
+    deadline = time.time() + runtime_s
+    while time.time() < deadline:
+        for publication in publication_reader.take(N=100, condition=publication_condition):
+            topic_name = str(getattr(publication, "topic_name", "") or "")
+            if not topic_name:
+                continue
+            found[topic_name] = {
+                "topic_name": topic_name,
+                "type_name": str(getattr(publication, "type_name", "") or ""),
+                "has_type_id": getattr(publication, "type_id", None) is not None,
+            }
+        time.sleep(0.05)
+
+    return sorted(found.values(), key=lambda item: item["topic_name"])
+
+
 def make_dynamic_reader(interface: str | None, topic_name: str, runtime_s: float = 6.0):
     from cyclonedds.domain import DomainParticipant
     from cyclonedds.sub import DataReader

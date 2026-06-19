@@ -31,7 +31,7 @@ from PySide6.QtWidgets import (
 )
 
 from .camera import _convert_h264_to_mp4, _find_ffmpeg, _is_jpeg, _looks_like_h264
-from .dds_dynamic import make_dynamic_reader
+from .dds_dynamic import discover_topic_publications, make_dynamic_reader
 from .demo import synthetic_room_points
 from .pointcloud import (
     parse_xyz_points,
@@ -39,11 +39,15 @@ from .pointcloud import (
     write_csv_points,
     write_pcd_ascii,
 )
+from .topics import (
+    ROBOT_PRESETS,
+    choose_topic,
+    fallback_topic_for,
+    is_auto_topic,
+    normalize_robot_key,
+    suggested_topic_text,
+)
 from .utils import ensure_dir, list_network_interfaces, timestamp_slug, value, write_json
-
-
-FRONT_VIDEO_TOPIC = "rt/frontvideostream"
-DEFAULT_LIDAR_TOPIC = "rt/utlidar/cloud"
 
 
 def default_output_dir() -> Path:
@@ -197,9 +201,10 @@ class CameraWorker(QObject):
     stats = Signal(dict)
     recording_finished = Signal(str)
 
-    def __init__(self, interface: str | None, session_dir: Path, fps: float, demo: bool = False) -> None:
+    def __init__(self, interface: str | None, topic: str, session_dir: Path, fps: float, demo: bool = False) -> None:
         super().__init__()
         self.interface = interface
+        self.topic = topic
         self.session_dir = session_dir
         self.fps = fps
         self.demo = demo
@@ -241,12 +246,12 @@ class CameraWorker(QObject):
             self._finish_recording()
 
     def _run_robot(self) -> None:
-        self.status.emit("Descubriendo camara DDS...")
-        _participant, reader, _datatype = make_dynamic_reader(self.interface, FRONT_VIDEO_TOPIC, runtime_s=6.0)
+        self.status.emit(f"Descubriendo camara DDS en {self.topic}...")
+        _participant, reader, _datatype = make_dynamic_reader(self.interface, self.topic, runtime_s=6.0)
         decoder = H264PreviewDecoder(self.frame.emit, self.status.emit)
         decoder.start()
         frames_read = 0
-        self.status.emit("Camara conectada.")
+        self.status.emit(f"Camara conectada: {self.topic}")
 
         try:
             while not self._stop.is_set():
@@ -357,7 +362,8 @@ class CameraWorker(QObject):
         mp4_path = h264_path.with_suffix(".mp4")
         mp4_ok = _convert_h264_to_mp4(h264_path, mp4_path, self.fps, errors)
         metadata = {
-            "source": "unitree_go2_frontvideostream_gui",
+            "source": "unitree_front_camera_gui",
+            "topic": self.topic,
             "h264_path": str(h264_path),
             "mp4_path": str(mp4_path) if mp4_ok else None,
             "h264_packets_written": h264_packets,
@@ -544,7 +550,7 @@ class LidarWorker(QObject):
         if self._saved_cloud_count <= 0 and self._snapshot_count <= 0:
             return
         metadata = {
-            "source": "unitree_go2_utlidar_gui",
+            "source": "unitree_lidar_gui",
             "topic": self.topic,
             "clouds_seen": self._cloud_count,
             "clouds_written": self._saved_cloud_count,
@@ -670,20 +676,21 @@ class MainWindow(QMainWindow):
     def __init__(
         self,
         initial_interface: str | None = None,
+        initial_robot: str = "Go2",
         output_dir: Path | None = None,
         demo: bool = False,
     ) -> None:
         super().__init__()
-        self.setWindowTitle("Capturador Video/LiDAR Go2")
+        self.setWindowTitle("Capturador Video/LiDAR Unitree")
         self.resize(1280, 760)
         self.camera_worker: CameraWorker | None = None
         self.lidar_worker: LidarWorker | None = None
         self.session_dir: Path | None = None
         self.demo_default = demo
-        self._build_ui(initial_interface, output_dir or default_output_dir())
+        self._build_ui(initial_interface, initial_robot, output_dir or default_output_dir())
         self._apply_style()
 
-    def _build_ui(self, initial_interface: str | None, output_dir: Path) -> None:
+    def _build_ui(self, initial_interface: str | None, initial_robot: str, output_dir: Path) -> None:
         root = QWidget()
         layout = QVBoxLayout(root)
         layout.setContentsMargins(12, 12, 12, 10)
@@ -696,12 +703,22 @@ class MainWindow(QMainWindow):
         grid.setHorizontalSpacing(10)
         grid.setVerticalSpacing(8)
 
+        self.robot_combo = QComboBox()
+        self.robot_combo.addItems([ROBOT_PRESETS["go2"].label, ROBOT_PRESETS["g1"].label, ROBOT_PRESETS["auto"].label])
+        initial_robot_key = normalize_robot_key(initial_robot)
+        initial_robot_label = ROBOT_PRESETS.get(initial_robot_key, ROBOT_PRESETS["go2"]).label
+        robot_index = self.robot_combo.findText(initial_robot_label)
+        if robot_index >= 0:
+            self.robot_combo.setCurrentIndex(robot_index)
+
         self.interface_combo = QComboBox()
         self._refresh_interfaces(initial_interface)
         refresh_button = QPushButton("Actualizar")
         refresh_button.clicked.connect(lambda: self._refresh_interfaces(self.interface_combo.currentText()))
 
-        self.topic_edit = QLineEdit(DEFAULT_LIDAR_TOPIC)
+        self.camera_topic_edit = QLineEdit(suggested_topic_text(initial_robot_key, "camera"))
+        self.topic_edit = QLineEdit(suggested_topic_text(initial_robot_key, "lidar"))
+        self.robot_combo.currentTextChanged.connect(self._on_robot_changed)
         self.output_edit = QLineEdit(str(output_dir))
         browse_button = QPushButton("Carpeta")
         browse_button.clicked.connect(self._choose_output_dir)
@@ -731,16 +748,20 @@ class MainWindow(QMainWindow):
         self.snapshot_button.setEnabled(False)
         self.snapshot_button.clicked.connect(self._save_lidar_snapshot)
 
-        grid.addWidget(QLabel("Interfaz"), 0, 0)
-        grid.addWidget(self.interface_combo, 0, 1)
-        grid.addWidget(refresh_button, 0, 2)
-        grid.addWidget(QLabel("Topico LiDAR"), 0, 3)
-        grid.addWidget(self.topic_edit, 0, 4)
+        grid.addWidget(QLabel("Robot"), 0, 0)
+        grid.addWidget(self.robot_combo, 0, 1)
+        grid.addWidget(QLabel("Interfaz"), 0, 2)
+        grid.addWidget(self.interface_combo, 0, 3)
+        grid.addWidget(refresh_button, 0, 4)
         grid.addWidget(self.demo_check, 0, 5)
-        grid.addWidget(QLabel("Salida"), 1, 0)
-        grid.addWidget(self.output_edit, 1, 1, 1, 3)
-        grid.addWidget(browse_button, 1, 4)
-        grid.addWidget(open_output_button, 1, 5)
+        grid.addWidget(QLabel("Topico camara"), 1, 0)
+        grid.addWidget(self.camera_topic_edit, 1, 1, 1, 2)
+        grid.addWidget(QLabel("Topico LiDAR"), 1, 3)
+        grid.addWidget(self.topic_edit, 1, 4, 1, 2)
+        grid.addWidget(QLabel("Salida"), 2, 0)
+        grid.addWidget(self.output_edit, 2, 1, 1, 3)
+        grid.addWidget(browse_button, 2, 4)
+        grid.addWidget(open_output_button, 2, 5)
 
         button_row = QHBoxLayout()
         for button in (
@@ -753,7 +774,8 @@ class MainWindow(QMainWindow):
             button.setMinimumHeight(34)
             button_row.addWidget(button)
         button_row.addStretch(1)
-        grid.addLayout(button_row, 2, 0, 1, 6)
+        grid.addLayout(button_row, 3, 0, 1, 6)
+        grid.setColumnStretch(1, 1)
         grid.setColumnStretch(4, 1)
 
         splitter = QSplitter(Qt.Orientation.Horizontal)
@@ -855,6 +877,11 @@ class MainWindow(QMainWindow):
             if index >= 0:
                 self.interface_combo.setCurrentIndex(index)
 
+    def _on_robot_changed(self, robot_label: str) -> None:
+        robot_key = normalize_robot_key(robot_label)
+        self.camera_topic_edit.setText(suggested_topic_text(robot_key, "camera"))
+        self.topic_edit.setText(suggested_topic_text(robot_key, "lidar"))
+
     def _choose_output_dir(self) -> None:
         selected = QFileDialog.getExistingDirectory(self, "Carpeta de salida", self.output_edit.text())
         if selected:
@@ -871,28 +898,65 @@ class MainWindow(QMainWindow):
 
         interface_text = self.interface_combo.currentText().strip()
         interface = None if not interface_text or interface_text == "Auto" else interface_text
-        output_base = Path(self.output_edit.text().strip() or "captures")
-        self.session_dir = ensure_dir(output_base / f"gui_{timestamp_slug()}")
-        topic = self.topic_edit.text().strip() or DEFAULT_LIDAR_TOPIC
+        robot_key = normalize_robot_key(self.robot_combo.currentText())
+        camera_requested = self.camera_topic_edit.text().strip()
+        lidar_requested = self.topic_edit.text().strip()
         demo = self.demo_check.isChecked()
 
-        self.camera_worker = CameraWorker(interface, self.session_dir, fps=15.0, demo=demo)
-        self.lidar_worker = LidarWorker(interface, topic, self.session_dir, demo=demo)
+        if demo:
+            camera_topic = "demo"
+            lidar_topic = "demo"
+        else:
+            publications: list[dict[str, Any]] = []
+            if is_auto_topic(camera_requested) or is_auto_topic(lidar_requested):
+                self._show_status("Detectando topicos DDS del robot...")
+                QApplication.processEvents()
+                publications = discover_topic_publications(interface, runtime_s=5.0)
 
-        self.camera_worker.frame.connect(self.video_view.set_image)
-        self.camera_worker.status.connect(self._show_status)
-        self.camera_worker.stats.connect(self._update_camera_stats)
-        self.camera_worker.recording_finished.connect(self._show_saved)
+            if is_auto_topic(camera_requested):
+                camera_topic = choose_topic(publications, robot_key, "camera") or fallback_topic_for(robot_key, "camera")
+            else:
+                camera_topic = camera_requested
 
-        self.lidar_worker.cloud.connect(self._update_lidar_cloud)
-        self.lidar_worker.status.connect(self._show_status)
-        self.lidar_worker.stats.connect(self._update_lidar_stats)
-        self.lidar_worker.recording_finished.connect(self._show_saved)
+            if is_auto_topic(lidar_requested):
+                lidar_topic = choose_topic(publications, robot_key, "lidar") or fallback_topic_for(robot_key, "lidar")
+            else:
+                lidar_topic = lidar_requested
 
-        self.camera_worker.start()
-        self.lidar_worker.start()
+        if not camera_topic and not lidar_topic:
+            self._show_status("No encontre topicos de camara ni LiDAR para iniciar.")
+            return
+
+        output_base = Path(self.output_edit.text().strip() or "captures")
+        self.session_dir = ensure_dir(output_base / f"gui_{timestamp_slug()}")
+
+        if camera_topic and not demo:
+            self.camera_topic_edit.setText(camera_topic)
+        if lidar_topic and not demo:
+            self.topic_edit.setText(lidar_topic)
+
+        if camera_topic:
+            self.camera_worker = CameraWorker(interface, camera_topic, self.session_dir, fps=15.0, demo=demo)
+            self.camera_worker.frame.connect(self.video_view.set_image)
+            self.camera_worker.status.connect(self._show_status)
+            self.camera_worker.stats.connect(self._update_camera_stats)
+            self.camera_worker.recording_finished.connect(self._show_saved)
+            self.camera_worker.start()
+        else:
+            self.camera_stats.setText("Camara: sin topico")
+
+        if lidar_topic:
+            self.lidar_worker = LidarWorker(interface, lidar_topic, self.session_dir, demo=demo)
+            self.lidar_worker.cloud.connect(self._update_lidar_cloud)
+            self.lidar_worker.status.connect(self._show_status)
+            self.lidar_worker.stats.connect(self._update_lidar_stats)
+            self.lidar_worker.recording_finished.connect(self._show_saved)
+            self.lidar_worker.start()
+        else:
+            self.lidar_stats.setText("LiDAR: sin topico")
+
         self._set_running(True)
-        self._show_status(f"Sesion: {self.session_dir}")
+        self._show_status(f"Sesion: {self.session_dir} | camara={camera_topic or 'sin'} | lidar={lidar_topic or 'sin'}")
 
     def stop_capture(self) -> None:
         if self.video_record_button.isChecked():
@@ -912,10 +976,12 @@ class MainWindow(QMainWindow):
     def _set_running(self, running: bool) -> None:
         self.start_button.setEnabled(not running)
         self.stop_button.setEnabled(running)
-        self.video_record_button.setEnabled(running)
-        self.lidar_record_button.setEnabled(running)
-        self.snapshot_button.setEnabled(running)
+        self.video_record_button.setEnabled(running and self.camera_worker is not None)
+        self.lidar_record_button.setEnabled(running and self.lidar_worker is not None)
+        self.snapshot_button.setEnabled(running and self.lidar_worker is not None)
+        self.robot_combo.setEnabled(not running)
         self.interface_combo.setEnabled(not running)
+        self.camera_topic_edit.setEnabled(not running)
         self.topic_edit.setEnabled(not running)
         self.demo_check.setEnabled(not running)
 
@@ -983,6 +1049,7 @@ class MainWindow(QMainWindow):
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="CapturadorVideoLidar --gui")
     parser.add_argument("--interface", default=None)
+    parser.add_argument("--robot", default="Go2", choices=["Go2", "G1 EDU", "Auto", "go2", "g1", "auto"])
     parser.add_argument("--output", type=Path, default=None)
     parser.add_argument("--demo", action="store_true")
     parser.add_argument("--smoke-test", action="store_true", help="Abre la GUI en demo y sale automaticamente.")
@@ -990,7 +1057,7 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
 
     app = QApplication(sys.argv[:1])
-    window = MainWindow(initial_interface=args.interface, output_dir=args.output, demo=args.demo)
+    window = MainWindow(initial_interface=args.interface, initial_robot=args.robot, output_dir=args.output, demo=args.demo)
     window.show()
 
     if args.smoke_test:
