@@ -1,4 +1,4 @@
-cyclonedds==0.10.2
+cyclonedds>=11.0.1
 numpy
 opencv-python
 pyinstaller

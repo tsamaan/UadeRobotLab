@@ -8,13 +8,14 @@ from pathlib import Path
 from typing import Callable
 
 from .demo import synthetic_room_points
+from .dds_dynamic import make_dynamic_reader
 from .pointcloud import (
     parse_xyz_points,
     pointcloud_metadata,
     write_csv_points,
     write_pcd_ascii,
 )
-from .sdk import require_unitree_sdk
+from .sdk import prepare_unitree_runtime
 from .utils import ensure_dir, value, write_json
 
 
@@ -40,7 +41,12 @@ def capture_lidar(config: LidarConfig, progress: Progress = print) -> dict:
     if config.demo:
         return _capture_demo_lidar(config, lidar_dir, progress)
 
-    require_unitree_sdk(config.sdk_path)
+    try:
+        return _capture_lidar_dynamic(config, lidar_dir, progress)
+    except Exception as exc:
+        progress(f"[lidar] Captura dinamica no disponible, pruebo SDK Unitree. Detalle: {exc}")
+
+    prepare_unitree_runtime(config.sdk_path)
 
     from unitree_sdk2py.core.channel import ChannelFactoryInitialize, ChannelPublisher, ChannelSubscriber
     from unitree_sdk2py.idl.sensor_msgs.msg.dds_ import PointCloud2_
@@ -156,6 +162,70 @@ def capture_lidar(config: LidarConfig, progress: Progress = print) -> dict:
         "raw_only_clouds": raw_only_count,
         "lidar_dir": str(lidar_dir),
         "errors": errors,
+    }
+    write_json(config.output_dir / "lidar_metadata.json", metadata)
+    progress(f"[lidar] Listo: {cloud_count} nubes en {lidar_dir}")
+    return metadata
+
+
+def _capture_lidar_dynamic(config: LidarConfig, lidar_dir: Path, progress: Progress) -> dict:
+    progress(f"[lidar] Descubriendo tipo dinamico DDS para {config.topic}...")
+    _participant, reader, _datatype = make_dynamic_reader(config.interface, config.topic, runtime_s=6.0)
+
+    progress(f"[lidar] Escuchando nube de puntos en {config.topic}...")
+    start = time.time()
+    cloud_count = 0
+    parsed_points_total = 0
+    raw_only_count = 0
+
+    while time.time() - start < config.duration:
+        if config.max_clouds and cloud_count >= config.max_clouds:
+            break
+
+        samples = reader.take(N=5)
+        if not samples:
+            time.sleep(0.02)
+            continue
+
+        for msg in samples:
+            if config.max_clouds and cloud_count >= config.max_clouds:
+                break
+
+            cloud_count += 1
+            stem = f"cloud_{cloud_count:06d}"
+            metadata = pointcloud_metadata(msg)
+            metadata["received_at"] = time.time()
+            metadata["topic"] = config.topic
+            metadata["capture_backend"] = "cyclonedds_dynamic"
+
+            raw_data = bytes(value(msg, "data", b"") or b"")
+            if config.export_format in {"all", "raw"}:
+                (lidar_dir / f"{stem}.bin").write_bytes(raw_data)
+
+            points = parse_xyz_points(msg)
+            metadata["parsed_points"] = len(points)
+            parsed_points_total += len(points)
+            if not points:
+                raw_only_count += 1
+            else:
+                if config.export_format in {"all", "pcd"}:
+                    write_pcd_ascii(lidar_dir / f"{stem}.pcd", points)
+                if config.export_format in {"all", "csv"}:
+                    write_csv_points(lidar_dir / f"{stem}.csv", points)
+
+            write_json(lidar_dir / f"{stem}.json", metadata)
+
+    metadata = {
+        "source": "unitree_go2_utlidar",
+        "duration_requested_s": config.duration,
+        "topic": config.topic,
+        "state_topic": config.state_topic,
+        "clouds_written": cloud_count,
+        "parsed_points_total": parsed_points_total,
+        "raw_only_clouds": raw_only_count,
+        "lidar_dir": str(lidar_dir),
+        "capture_backend": "cyclonedds_dynamic",
+        "errors": [],
     }
     write_json(config.output_dir / "lidar_metadata.json", metadata)
     progress(f"[lidar] Listo: {cloud_count} nubes en {lidar_dir}")

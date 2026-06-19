@@ -22,7 +22,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--fps", type=float, default=10.0, help="FPS objetivo para la camara.")
     parser.add_argument("--output", type=Path, default=None, help="Carpeta de salida.")
     parser.add_argument("--sdk-path", default=None, help="Ruta opcional al SDK unitree_sdk2_python.")
-    parser.add_argument("--no-video-file", action="store_true", help="No intenta generar AVI; solo guarda frames.")
+    parser.add_argument("--no-video-file", action="store_true", help="No intenta generar AVI/MP4; conserva frames o stream crudo.")
     parser.add_argument("--lidar-topic", default="rt/utlidar/cloud", help="Topico DDS PointCloud2.")
     parser.add_argument("--lidar-state-topic", default="rt/utlidar/lidar_state", help="Topico DDS LidarState.")
     parser.add_argument("--lidar-format", choices=["all", "pcd", "csv", "raw"], default="all")
@@ -106,7 +106,7 @@ def interactive_args(previous: argparse.Namespace | None = None) -> argparse.Nam
     namespace.fps = fps
     namespace.output = output
     namespace.sdk_path = getattr(previous, "sdk_path", None)
-    namespace.no_video_file = not _ask_yes_no("Intentar generar AVI ademas de frames", True)
+    namespace.no_video_file = not _ask_yes_no("Intentar generar video MP4/AVI cuando sea posible", True)
     namespace.lidar_topic = lidar_topic
     namespace.lidar_state_topic = lidar_state_topic
     namespace.lidar_format = lidar_format
