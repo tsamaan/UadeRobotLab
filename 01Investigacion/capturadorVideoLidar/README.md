@@ -29,6 +29,7 @@ python main.py
 ```
 
 Desde la ventana se puede conectar al robot, ver la camara frontal, ver la nube LiDAR en planta y guardar video/LiDAR en la carpeta de salida.
+Por defecto la salida queda en `Documentos\CapturadorVideoLidar`; el boton `Abrir salida` abre la carpeta de la sesion actual. `Guardar LiDAR` exporta nubes `.pcd`, `.csv`, `.bin`, `.json` y al detener tambien guarda una imagen `.png` del mapa. `Nube actual` guarda una captura puntual de la nube y del mapa.
 
 El modo consola sigue disponible con `--console`:
 
@@ -76,6 +77,7 @@ captures/<fecha>/
     cloud_000001.csv
     cloud_000001.bin
     cloud_000001.json
+    mapa_lidar_final_*.png
   camera_metadata.json
   lidar_metadata.json
   session_metadata.json

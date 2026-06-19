@@ -9,8 +9,8 @@ import time
 from pathlib import Path
 from typing import Any, Callable
 
-from PySide6.QtCore import QObject, QSize, Qt, QTimer, Signal
-from PySide6.QtGui import QColor, QImage, QPainter, QPen, QPixmap
+from PySide6.QtCore import QObject, QSize, Qt, QTimer, QUrl, Signal
+from PySide6.QtGui import QColor, QDesktopServices, QImage, QPainter, QPen, QPixmap
 from PySide6.QtWidgets import (
     QApplication,
     QCheckBox,
@@ -44,6 +44,13 @@ from .utils import ensure_dir, list_network_interfaces, timestamp_slug, value, w
 
 FRONT_VIDEO_TOPIC = "rt/frontvideostream"
 DEFAULT_LIDAR_TOPIC = "rt/utlidar/cloud"
+
+
+def default_output_dir() -> Path:
+    documents = Path.home() / "Documents"
+    if documents.exists():
+        return documents / "CapturadorVideoLidar"
+    return Path.home() / "CapturadorVideoLidar"
 
 
 class H264PreviewDecoder:
@@ -673,7 +680,7 @@ class MainWindow(QMainWindow):
         self.lidar_worker: LidarWorker | None = None
         self.session_dir: Path | None = None
         self.demo_default = demo
-        self._build_ui(initial_interface, output_dir or Path("captures"))
+        self._build_ui(initial_interface, output_dir or default_output_dir())
         self._apply_style()
 
     def _build_ui(self, initial_interface: str | None, output_dir: Path) -> None:
@@ -698,6 +705,8 @@ class MainWindow(QMainWindow):
         self.output_edit = QLineEdit(str(output_dir))
         browse_button = QPushButton("Carpeta")
         browse_button.clicked.connect(self._choose_output_dir)
+        open_output_button = QPushButton("Abrir salida")
+        open_output_button.clicked.connect(self._open_output_dir)
 
         self.demo_check = QCheckBox("Demo")
         self.demo_check.setChecked(self.demo_default)
@@ -731,6 +740,7 @@ class MainWindow(QMainWindow):
         grid.addWidget(QLabel("Salida"), 1, 0)
         grid.addWidget(self.output_edit, 1, 1, 1, 3)
         grid.addWidget(browse_button, 1, 4)
+        grid.addWidget(open_output_button, 1, 5)
 
         button_row = QHBoxLayout()
         for button in (
@@ -850,6 +860,11 @@ class MainWindow(QMainWindow):
         if selected:
             self.output_edit.setText(selected)
 
+    def _open_output_dir(self) -> None:
+        target = self.session_dir or Path(self.output_edit.text().strip() or default_output_dir())
+        ensure_dir(target)
+        QDesktopServices.openUrl(QUrl.fromLocalFile(str(target.resolve())))
+
     def start_capture(self) -> None:
         if self.camera_worker is not None or self.lidar_worker is not None:
             return
@@ -913,10 +928,21 @@ class MainWindow(QMainWindow):
         self.lidar_record_button.setText("Detener LiDAR" if enabled else "Guardar LiDAR")
         if self.lidar_worker is not None:
             self.lidar_worker.set_recording(enabled)
+        if not enabled and self.session_dir is not None:
+            self._save_lidar_map_png("mapa_lidar_final")
 
     def _save_lidar_snapshot(self) -> None:
         if self.lidar_worker is not None:
             self.lidar_worker.save_snapshot()
+        self._save_lidar_map_png("mapa_lidar_actual")
+
+    def _save_lidar_map_png(self, prefix: str) -> None:
+        if self.session_dir is None:
+            return
+        lidar_dir = ensure_dir(self.session_dir / "lidar")
+        png_path = lidar_dir / f"{prefix}_{timestamp_slug()}.png"
+        if self.lidar_view.grab().save(str(png_path), "PNG"):
+            self.statusBar().showMessage(f"Mapa guardado: {png_path}")
 
     def _update_camera_stats(self, stats: dict[str, Any]) -> None:
         self.camera_stats.setText(
@@ -957,7 +983,7 @@ class MainWindow(QMainWindow):
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="CapturadorVideoLidar --gui")
     parser.add_argument("--interface", default=None)
-    parser.add_argument("--output", type=Path, default=Path("captures"))
+    parser.add_argument("--output", type=Path, default=None)
     parser.add_argument("--demo", action="store_true")
     parser.add_argument("--smoke-test", action="store_true", help="Abre la GUI en demo y sale automaticamente.")
     parser.add_argument("--smoke-record", action="store_true", help="Activa grabacion durante la prueba automatica.")
