@@ -7,13 +7,24 @@ from typing import Any
 from .sdk import cyclonedds_config
 
 
-def discover_topic_publications(interface: str | None, runtime_s: float = 4.0) -> list[dict[str, Any]]:
-    from cyclonedds.builtin import BuiltinDataReader, BuiltinTopicDcpsPublication
-    from cyclonedds.core import InstanceState, ReadCondition, SampleState, ViewState
+def _make_participant(interface: str | None):
     from cyclonedds.domain import DomainParticipant
 
     os.environ["CYCLONEDDS_URI"] = cyclonedds_config(interface)
-    participant = DomainParticipant(0)
+    try:
+        return DomainParticipant(0)
+    except Exception:
+        if not interface:
+            raise
+        os.environ["CYCLONEDDS_URI"] = cyclonedds_config(None)
+        return DomainParticipant(0)
+
+
+def discover_topic_publications(interface: str | None, runtime_s: float = 4.0) -> list[dict[str, Any]]:
+    from cyclonedds.builtin import BuiltinDataReader, BuiltinTopicDcpsPublication
+    from cyclonedds.core import InstanceState, ReadCondition, SampleState, ViewState
+
+    participant = _make_participant(interface)
     publication_reader = BuiltinDataReader(participant, BuiltinTopicDcpsPublication)
     publication_condition = ReadCondition(
         publication_reader,
@@ -38,12 +49,10 @@ def discover_topic_publications(interface: str | None, runtime_s: float = 4.0) -
 
 
 def make_dynamic_reader(interface: str | None, topic_name: str, runtime_s: float = 6.0):
-    from cyclonedds.domain import DomainParticipant
     from cyclonedds.sub import DataReader
     from cyclonedds.topic import Topic
 
-    os.environ["CYCLONEDDS_URI"] = cyclonedds_config(interface)
-    participant = DomainParticipant(0)
+    participant = _make_participant(interface)
     discovered = discover_topic_type_and_qos(participant, topic_name, runtime_s=runtime_s)
     if discovered is None:
         raise RuntimeError(f"No se descubrio publicacion DDS para {topic_name}")

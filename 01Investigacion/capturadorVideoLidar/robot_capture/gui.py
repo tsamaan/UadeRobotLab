@@ -6,6 +6,7 @@ import subprocess
 import sys
 import threading
 import time
+from collections import Counter
 from pathlib import Path
 from typing import Any, Callable
 
@@ -57,10 +58,42 @@ def default_output_dir() -> Path:
     return Path.home() / "CapturadorVideoLidar"
 
 
+def _has_h264_keyframe(payload: bytes) -> bool:
+    return any(nal_type in {5, 7} for nal_type in _h264_nal_types(payload))
+
+
+def _h264_nal_types(payload: bytes) -> list[int]:
+    nal_types: list[int] = []
+    index = 0
+    length = len(payload)
+    while index < length - 4:
+        if payload[index : index + 4] == b"\x00\x00\x00\x01":
+            nal_index = index + 4
+            index = nal_index + 1
+        elif payload[index : index + 3] == b"\x00\x00\x01":
+            nal_index = index + 3
+            index = nal_index + 1
+        else:
+            index += 1
+            continue
+
+        if nal_index < length:
+            nal_types.append(payload[nal_index] & 0x1F)
+    return nal_types
+
+
 class H264PreviewDecoder:
-    def __init__(self, on_frame: Callable[[QImage], None], on_status: Callable[[str], None]) -> None:
+    def __init__(
+        self,
+        on_frame: Callable[[QImage], None],
+        on_status: Callable[[str], None],
+        width: int = 640,
+        height: int = 360,
+    ) -> None:
         self._on_frame = on_frame
         self._on_status = on_status
+        self._width = width
+        self._height = height
         self._process: subprocess.Popen[bytes] | None = None
         self._thread: threading.Thread | None = None
         self._lock = threading.Lock()
@@ -77,19 +110,20 @@ class H264PreviewDecoder:
             "-hide_banner",
             "-loglevel",
             "error",
-            "-fflags",
-            "nobuffer",
-            "-flags",
-            "low_delay",
             "-f",
             "h264",
             "-i",
             "pipe:0",
             "-an",
+            "-vf",
+            (
+                f"scale={self._width}:{self._height}:force_original_aspect_ratio=decrease,"
+                f"pad={self._width}:{self._height}:(ow-iw)/2:(oh-ih)/2"
+            ),
+            "-pix_fmt",
+            "rgb24",
             "-f",
-            "image2pipe",
-            "-vcodec",
-            "ppm",
+            "rawvideo",
             "pipe:1",
         ]
         creationflags = getattr(subprocess, "CREATE_NO_WINDOW", 0) if sys.platform == "win32" else 0
@@ -138,61 +172,20 @@ class H264PreviewDecoder:
             return
 
         stream = process.stdout
+        byte_count = self._width * self._height * 3
         while not self._stop.is_set():
-            magic = self._read_token(stream)
-            if magic is None:
-                break
-            if magic != b"P6":
-                continue
-
-            width_token = self._read_token(stream)
-            height_token = self._read_token(stream)
-            max_token = self._read_token(stream)
-            if width_token is None or height_token is None or max_token is None:
-                break
-
-            try:
-                width = int(width_token)
-                height = int(height_token)
-                max_value = int(max_token)
-            except ValueError:
-                continue
-
-            if width <= 0 or height <= 0 or max_value != 255:
-                continue
-
-            byte_count = width * height * 3
             frame = stream.read(byte_count)
             if len(frame) != byte_count:
                 break
 
-            image = QImage(frame, width, height, width * 3, QImage.Format.Format_RGB888).copy()
+            image = QImage(
+                frame,
+                self._width,
+                self._height,
+                self._width * 3,
+                QImage.Format.Format_RGB888,
+            ).copy()
             self._on_frame(image)
-
-    @staticmethod
-    def _read_token(stream: Any) -> bytes | None:
-        token = bytearray()
-        while True:
-            char = stream.read(1)
-            if not char:
-                return None
-            if char == b"#":
-                stream.readline()
-                continue
-            if char.isspace():
-                continue
-            token.extend(char)
-            break
-
-        while True:
-            char = stream.read(1)
-            if not char or char.isspace():
-                break
-            if char == b"#":
-                stream.readline()
-                break
-            token.extend(char)
-        return bytes(token)
 
 
 class CameraWorker(QObject):
@@ -217,6 +210,10 @@ class CameraWorker(QObject):
         self._h264_path: Path | None = None
         self._h264_packets = 0
         self._jpeg_frames = 0
+        self._selected_resolution: str | None = None
+        self._skipped_resolution_packets = 0
+        self._skipped_until_keyframe = 0
+        self._record_waiting_keyframe = False
 
     def start(self) -> None:
         self._thread = threading.Thread(target=self._run, name="camera-worker", daemon=True)
@@ -230,6 +227,8 @@ class CameraWorker(QObject):
 
     def set_recording(self, enabled: bool) -> None:
         with self._record_lock:
+            if enabled and not self._recording:
+                self._record_waiting_keyframe = True
             self._recording = enabled
             if not enabled:
                 self._finish_requested = True
@@ -251,7 +250,32 @@ class CameraWorker(QObject):
         decoder = H264PreviewDecoder(self.frame.emit, self.status.emit)
         decoder.start()
         frames_read = 0
+        selected_resolution: str | None = None
+        resolution_probe: list[tuple[str, bytes]] = []
+        probe_started = time.time()
         self.status.emit(f"Camara conectada: {self.topic}")
+
+        def process_payload(payload: bytes) -> None:
+            nonlocal frames_read
+            self._finish_recording_if_requested()
+            frames_read += 1
+            if _is_jpeg(payload):
+                image = QImage.fromData(payload, "JPG")
+                if not image.isNull():
+                    self.frame.emit(image)
+                self._record_jpeg(payload)
+            elif _looks_like_h264(payload):
+                decoder.write(payload)
+                self._record_h264(payload)
+
+            self.stats.emit(
+                {
+                    "frames_read": frames_read,
+                    "h264_packets": self._h264_packets,
+                    "jpeg_frames": self._jpeg_frames,
+                    "skipped_resolution_packets": self._skipped_resolution_packets,
+                }
+            )
 
         try:
             while not self._stop.is_set():
@@ -268,28 +292,33 @@ class CameraWorker(QObject):
                     continue
 
                 for msg in samples:
-                    self._finish_recording_if_requested()
-                    frames_read += 1
                     payload = bytes(getattr(msg, "data", b"") or b"")
                     if not payload:
                         continue
 
-                    if _is_jpeg(payload):
-                        image = QImage.fromData(payload, "JPG")
-                        if not image.isNull():
-                            self.frame.emit(image)
-                        self._record_jpeg(payload)
-                    elif _looks_like_h264(payload):
-                        decoder.write(payload)
-                        self._record_h264(payload)
+                    resolution = self._message_resolution(msg)
+                    if resolution:
+                        if selected_resolution is None:
+                            resolution_probe.append((resolution, payload))
+                            if len(resolution_probe) < 24 and time.time() - probe_started < 0.6:
+                                continue
 
-                    self.stats.emit(
-                        {
-                            "frames_read": frames_read,
-                            "h264_packets": self._h264_packets,
-                            "jpeg_frames": self._jpeg_frames,
-                        }
-                    )
+                            selected_resolution = self._choose_resolution(resolution_probe)
+                            self._selected_resolution = selected_resolution
+                            skipped = sum(1 for item_resolution, _payload in resolution_probe if item_resolution != selected_resolution)
+                            self._skipped_resolution_packets += skipped
+                            self.status.emit(f"Camara usando resolucion {selected_resolution}p.")
+                            for item_resolution, item_payload in resolution_probe:
+                                if item_resolution == selected_resolution:
+                                    process_payload(item_payload)
+                            resolution_probe.clear()
+                            continue
+
+                        if resolution != selected_resolution:
+                            self._skipped_resolution_packets += 1
+                            continue
+
+                    process_payload(payload)
         finally:
             decoder.stop()
 
@@ -330,8 +359,15 @@ class CameraWorker(QObject):
         if not self._recording_enabled():
             return
         if self._h264_file is None:
+            if not _has_h264_keyframe(payload):
+                self._skipped_until_keyframe += 1
+                if self._record_waiting_keyframe:
+                    self.status.emit("Grabacion: esperando keyframe H264...")
+                    self._record_waiting_keyframe = False
+                return
             video_dir = ensure_dir(self.session_dir / "video")
-            self._h264_path = video_dir / f"front_camera_{timestamp_slug()}.h264"
+            resolution_suffix = f"_{self._selected_resolution}p" if self._selected_resolution else ""
+            self._h264_path = video_dir / f"front_camera{resolution_suffix}_{timestamp_slug()}.h264"
             self._h264_file = self._h264_path.open("wb")
             self._h264_packets = 0
             self.status.emit(f"Grabando video: {self._h264_path.name}")
@@ -364,10 +400,13 @@ class CameraWorker(QObject):
         metadata = {
             "source": "unitree_front_camera_gui",
             "topic": self.topic,
+            "resolution": self._selected_resolution,
             "h264_path": str(h264_path),
             "mp4_path": str(mp4_path) if mp4_ok else None,
             "h264_packets_written": h264_packets,
             "jpeg_frames_written": self._jpeg_frames,
+            "skipped_other_resolution_packets": self._skipped_resolution_packets,
+            "skipped_until_keyframe": self._skipped_until_keyframe,
             "errors": errors,
         }
         write_json(h264_path.with_name(h264_path.stem + "_metadata.json"), metadata)
@@ -376,6 +415,38 @@ class CameraWorker(QObject):
         self.status.emit(f"Video guardado: {final_path.name}")
         self._h264_path = None
         self._h264_packets = 0
+
+    @staticmethod
+    def _message_resolution(msg: object) -> str | None:
+        raw_resolution = getattr(msg, "resolution", None)
+        if raw_resolution is None:
+            return None
+        if callable(raw_resolution):
+            raw_resolution = raw_resolution()
+        text = str(raw_resolution).strip()
+        return text or None
+
+    @staticmethod
+    def _choose_resolution(packets: list[tuple[str, bytes]]) -> str:
+        counts = Counter(resolution for resolution, _payload in packets)
+        byte_counts = Counter()
+        for resolution, payload in packets:
+            byte_counts[resolution] += len(payload)
+
+        def numeric_resolution(resolution: str) -> int:
+            try:
+                return int(resolution)
+            except ValueError:
+                return -1
+
+        return max(
+            counts,
+            key=lambda resolution: (
+                numeric_resolution(resolution),
+                byte_counts[resolution] / max(1, counts[resolution]),
+                counts[resolution],
+            ),
+        )
 
 
 class LidarWorker(QObject):
