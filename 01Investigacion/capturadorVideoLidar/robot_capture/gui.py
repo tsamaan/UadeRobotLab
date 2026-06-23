@@ -7,7 +7,7 @@ import sys
 import tempfile
 import threading
 import time
-from collections import Counter
+from collections import Counter, deque
 from pathlib import Path
 from typing import Any, Callable
 
@@ -212,10 +212,15 @@ class CameraWorker(QObject):
         self._recording = False
         self._finish_requested = False
         self._record_lock = threading.Lock()
+        self._record_file_lock = threading.Lock()
+        self._prebuffer_lock = threading.Lock()
         self._h264_file: Any | None = None
         self._h264_path: Path | None = None
         self._h264_packets = 0
         self._jpeg_frames = 0
+        self._h264_prebuffer: deque[tuple[float, bytes]] = deque()
+        self._h264_prebuffer_seconds = 4.0
+        self._prebuffer_packets_written = 0
         self._selected_resolution: str | None = None
         self._skipped_resolution_packets = 0
         self._skipped_until_keyframe = 0
@@ -232,12 +237,18 @@ class CameraWorker(QObject):
         self._finish_recording()
 
     def set_recording(self, enabled: bool) -> None:
+        start_from_prebuffer = False
         with self._record_lock:
             if enabled and not self._recording:
                 self._record_waiting_keyframe = True
+                self._skipped_until_keyframe = 0
+                self._prebuffer_packets_written = 0
+                start_from_prebuffer = True
             self._recording = enabled
             if not enabled:
                 self._finish_requested = True
+        if start_from_prebuffer:
+            self._start_recording_from_prebuffer()
 
     def _run(self) -> None:
         try:
@@ -271,6 +282,7 @@ class CameraWorker(QObject):
                     self.frame.emit(image)
                 self._record_jpeg(payload)
             elif _looks_like_h264(payload):
+                self._remember_h264_packet(payload)
                 decoder.write(payload)
                 self._record_h264(payload)
 
@@ -364,19 +376,59 @@ class CameraWorker(QObject):
     def _record_h264(self, payload: bytes) -> None:
         if not self._recording_enabled():
             return
-        if self._h264_file is None:
-            if not _has_h264_keyframe(payload):
-                self._skipped_until_keyframe += 1
-                if self._record_waiting_keyframe:
-                    self.status.emit("Grabacion: esperando keyframe H264...")
-                    self._record_waiting_keyframe = False
+        with self._record_file_lock:
+            if self._h264_file is None:
+                if not _has_h264_keyframe(payload):
+                    self._skipped_until_keyframe += 1
+                    if self._record_waiting_keyframe:
+                        self.status.emit("Grabacion: esperando keyframe H264...")
+                        self._record_waiting_keyframe = False
+                    return
+                self._open_h264_file()
+            self._write_h264_packet(payload)
+
+    def _remember_h264_packet(self, payload: bytes) -> None:
+        now = time.time()
+        with self._prebuffer_lock:
+            self._h264_prebuffer.append((now, payload))
+            cutoff = now - self._h264_prebuffer_seconds
+            while self._h264_prebuffer and self._h264_prebuffer[0][0] < cutoff:
+                self._h264_prebuffer.popleft()
+
+    def _start_recording_from_prebuffer(self) -> None:
+        with self._prebuffer_lock:
+            packets = [payload for _timestamp, payload in self._h264_prebuffer]
+        if not packets:
+            return
+
+        start_index = None
+        for index, payload in enumerate(packets):
+            if _has_h264_keyframe(payload):
+                start_index = index
+        if start_index is None:
+            return
+
+        with self._record_file_lock:
+            if self._h264_file is not None:
                 return
-            video_dir = ensure_dir(self.session_dir / "video")
-            resolution_suffix = f"_{self._selected_resolution}p" if self._selected_resolution else ""
-            self._h264_path = video_dir / f"front_camera{resolution_suffix}_{timestamp_slug()}.h264"
-            self._h264_file = self._h264_path.open("wb")
-            self._h264_packets = 0
-            self.status.emit(f"Grabando video: {self._h264_path.name}")
+            self._open_h264_file()
+            for payload in packets[start_index:]:
+                self._write_h264_packet(payload)
+                self._prebuffer_packets_written += 1
+            self._record_waiting_keyframe = False
+            self.status.emit(f"Grabando video: {self._h264_path.name} (con buffer)")
+
+    def _open_h264_file(self) -> None:
+        video_dir = ensure_dir(self.session_dir / "video")
+        resolution_suffix = f"_{self._selected_resolution}p" if self._selected_resolution else ""
+        self._h264_path = video_dir / f"front_camera{resolution_suffix}_{timestamp_slug()}.h264"
+        self._h264_file = self._h264_path.open("wb")
+        self._h264_packets = 0
+        self.status.emit(f"Grabando video: {self._h264_path.name}")
+
+    def _write_h264_packet(self, payload: bytes) -> None:
+        if self._h264_file is None:
+            return
         self._h264_file.write(payload)
         self._h264_packets += 1
 
@@ -388,14 +440,15 @@ class CameraWorker(QObject):
         (frames_dir / f"frame_{self._jpeg_frames:06d}.jpg").write_bytes(payload)
 
     def _finish_recording(self) -> None:
-        h264_path = self._h264_path
-        h264_packets = self._h264_packets
-        if self._h264_file is not None:
-            try:
-                self._h264_file.close()
-            except OSError:
-                pass
-            self._h264_file = None
+        with self._record_file_lock:
+            h264_path = self._h264_path
+            h264_packets = self._h264_packets
+            if self._h264_file is not None:
+                try:
+                    self._h264_file.close()
+                except OSError:
+                    pass
+                self._h264_file = None
 
         if h264_path is None or not h264_path.exists() or h264_packets <= 0:
             return
@@ -411,6 +464,7 @@ class CameraWorker(QObject):
             "mp4_path": str(mp4_path) if mp4_ok else None,
             "h264_packets_written": h264_packets,
             "jpeg_frames_written": self._jpeg_frames,
+            "prebuffer_packets_written": self._prebuffer_packets_written,
             "skipped_other_resolution_packets": self._skipped_resolution_packets,
             "skipped_until_keyframe": self._skipped_until_keyframe,
             "errors": errors,
@@ -419,8 +473,9 @@ class CameraWorker(QObject):
         final_path = mp4_path if mp4_ok else h264_path
         self.recording_finished.emit(str(final_path))
         self.status.emit(f"Video guardado: {final_path.name}")
-        self._h264_path = None
-        self._h264_packets = 0
+        with self._record_file_lock:
+            self._h264_path = None
+            self._h264_packets = 0
 
     @staticmethod
     def _message_resolution(msg: object) -> str | None:
