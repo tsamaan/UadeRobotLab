@@ -1,0 +1,12 @@
+# Cache de Python
+__pycache__/
+*.py[cod]
+
+# Estado del simulador en ejecucion: lo escribe el propio simulador al
+# arrancar y lo borra al cerrar. Nunca va al repo.
+.simulador_activo.json
+.pose_actual.json
+
+# Entornos virtuales que pueda armar un profesor en su maquina
+.venv/
+env/
