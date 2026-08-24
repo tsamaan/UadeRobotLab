@@ -1,0 +1,18 @@
+# Cache de Python. Nunca debe versionarse: se regenera solo, cambia con cada
+# version de Python y ensucia todos los diffs.
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Entornos virtuales. Dependen de rutas absolutas de la maquina que los creo,
+# asi que no sirven al clonar el repo en otra computadora.
+.venv/
+venv/
+
+# Estado en ejecucion del simulador de los laboratorios
+.simulador_activo.json
+.pose_actual.json
+
+# Sistema operativo
+.DS_Store
+Thumbs.db
