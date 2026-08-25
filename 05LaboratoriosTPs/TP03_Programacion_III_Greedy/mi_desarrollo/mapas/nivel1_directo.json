@@ -1,0 +1,16 @@
+{
+  "nombre": "Nivel 1 - Solucion directa",
+  "descripcion": "El destino se alcanza reduciendo la distancia en cada paso.",
+  "grilla": [
+    [0, 0, 0, 1, 0],
+    [1, 1, 0, 1, 0],
+    [0, 0, 0, 0, 0],
+    [0, 1, 1, 1, 0],
+    [0, 0, 0, 0, 0]
+  ],
+  "inicio": [0, 0],
+  "destino": [4, 4],
+  "tamano_celda_metros": 0.50,
+  "orientacion_inicial": "ESTE",
+  "maximo_pasos": 30
+}

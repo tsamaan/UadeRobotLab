@@ -27,11 +27,11 @@ ARCHIVO_POSE = os.path.join(os.path.dirname(os.path.abspath(__file__)),
                             ".pose_actual.json")
 
 
-def _publicar_activo(robot, p, domain, interfaz):
+def _publicar_activo(robot, p, domain, interfaz, grilla=None):
     with open(ARCHIVO_ACTIVO, "w", encoding="utf-8") as f:
         json.dump({"robot": robot.clave, "materia": p.nombre.split("-")[0],
                    "domain": domain, "interfaz": interfaz,
-                   "pose_archivo": ARCHIVO_POSE}, f)
+                   "pose_archivo": ARCHIVO_POSE, "grilla": grilla}, f)
 
 
 def _limpiar():
@@ -65,6 +65,7 @@ def main(argv=None) -> int:
     ap.add_argument("--materia", default="tp01", choices=sorted(PERFILES))
     ap.add_argument("--domain", type=int, default=0)
     ap.add_argument("--interfaz", default="lo")
+    ap.add_argument("--grilla", help="mapa JSON de navegacion (TP03)")
     ap.add_argument("--sin-ventana", action="store_true")
     ap.add_argument("--silencioso", action="store_true")
     ap.add_argument("--solo-revisar", action="store_true",
@@ -82,16 +83,53 @@ def main(argv=None) -> int:
     p = perfil(args.materia)
     mundo = Mundo(p)
 
+    # TP03: si hay mapa, se dibuja la grilla y el robot arranca en la celda de
+    # inicio mirando en la orientacion que indica el mapa.
+    mapa = None
+    if args.grilla:
+        from .grilla import MapaInvalido, cargar
+        try:
+            mapa = cargar(args.grilla)
+        except MapaInvalido as exc:
+            print(f"\n  ERROR EN EL MAPA: {exc}\n", file=sys.stderr)
+            return 1
+        x0, y0 = mapa.a_mundo(*mapa.inicio)
+        mundo.situar(x0, y0, mapa.rumbo_inicial())
+
+        # El robot tiene que entrar en la celda. El Go2 mide 0.62 m de largo:
+        # en una grilla de 0.50 m sobresale por las puntas e invade las celdas
+        # vecinas. En el simulador se ve como si atravesara los obstaculos; en
+        # el aula, los tocaria de verdad.
+        from .robots import entra_en_celda
+        entra, lado = entra_en_celda(robot.clave, mapa.tamano_celda)
+        if not entra:
+            sugerida = round(lado * 1.15 + 0.049, 1)
+            print("*" * 62)
+            print(f"  ATENCION: EL {robot.nombre.upper()} NO ENTRA EN LA CELDA")
+            print("*" * 62)
+            print(f"  El robot mide {lado:.2f} m y la celda del mapa es "
+                  f"{mapa.tamano_celda:.2f} m.")
+            print()
+            print("  El robot va a sobresalir hacia las celdas vecinas. En la")
+            print("  ventana se va a ver como si atravesara los obstaculos, y")
+            print("  con el robot real los tocaria.")
+            print()
+            print("  Que hacer, cualquiera de las dos:")
+            print(f"    - usar el G1, que mide 0.32 m y entra")
+            print(f"    - subir 'tamano_celda_metros' del mapa a {sugerida:.1f}")
+            print("*" * 62)
+            print()
+
     from .arrancar import SimuladorOficial
 
     try:
         sim = SimuladorOficial(mundo, robot, r.repo, args.domain, args.interfaz,
-                               verboso=not args.silencioso)
+                               verboso=not args.silencioso, mapa=mapa)
     except FileNotFoundError as exc:
         print(f"\n  ERROR: {exc}\n", file=sys.stderr)
         return 1
 
-    _publicar_activo(robot, p, args.domain, args.interfaz)
+    _publicar_activo(robot, p, args.domain, args.interfaz, args.grilla)
     detener = threading.Event()
     threading.Thread(target=_publicar_pose, args=(mundo, detener),
                      daemon=True).start()
@@ -104,6 +142,11 @@ def main(argv=None) -> int:
     print(f"  Materia   : {p.nombre}")
     print(f"  Limites   : {p.velocidad_max} m/s | {p.velocidad_angular_max} rad/s"
           f" | {p.duracion_max} s por orden")
+    if mapa is not None:
+        print(f"  Mapa      : {mapa.nombre} ({mapa.filas}x{mapa.columnas}, "
+              f"celda {mapa.tamano_celda} m)")
+        print(f"  Recorrido : {tuple(mapa.inicio)} -> {tuple(mapa.destino)}, "
+              f"mirando al {mapa.orientacion_inicial}")
     print(f"  DDS       : dominio {args.domain}, interfaz {args.interfaz}")
     print("=" * 62)
     print()

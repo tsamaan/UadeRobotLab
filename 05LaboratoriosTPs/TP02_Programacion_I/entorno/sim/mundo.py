@@ -41,9 +41,11 @@ class Mundo:
 
     def reiniciar(self) -> None:
         with self._lock:
-            self.x = 0.0
-            self.y = 0.0
-            self.yaw = 0.0
+            # Si el mapa fijo un inicio (TP03), volvemos ahi y no al origen.
+            x0, y0, yaw0 = getattr(self, "_inicio", (0.0, 0.0, 0.0))
+            self.x = x0
+            self.y = y0
+            self.yaw = yaw0
             self.vx = 0.0
             self.vy = 0.0
             self.vyaw = 0.0
@@ -113,6 +115,16 @@ class Mundo:
                 self.accion = "avanzando"
             else:
                 self.accion = "quieto"
+
+    def situar(self, x: float, y: float, yaw: float) -> None:
+        """Coloca el robot en una pose concreta. Lo usa el TP03 para arrancar
+        en la celda de inicio, mirando en la orientacion del mapa."""
+        with self._lock:
+            self.x, self.y, self.yaw = float(x), float(y), float(yaw)
+            self.vx = self.vy = self.vyaw = 0.0
+            self._vence_en = 0.0
+            self.accion = "quieto"
+            self._inicio = (float(x), float(y), float(yaw))
 
     def set_de_pie(self, de_pie: bool) -> None:
         with self._lock:
