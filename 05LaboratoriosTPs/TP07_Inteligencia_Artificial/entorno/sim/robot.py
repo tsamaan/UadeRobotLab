@@ -231,6 +231,26 @@ class Robot:
         self._sostener(0.0, 0.0, velocidad, tiempo)
         return self.verificar_estado()
 
+    def mover(self, vx: float = 0.0, vy: float = 0.0, vyaw: float = 0.0,
+              tiempo: float = 1.0) -> EstadoRobot:
+        """Las tres velocidades A LA VEZ, como el Move() del SDK.
+
+        Es lo que permite una curva: avanzar y girar al mismo tiempo. Si se
+        resolviera eligiendo entre avanzar() o girar(), el simulador haria una
+        cosa y el robot real otra, y la app del alumno se comportaria distinto
+        el dia de la visita.
+
+            vx    adelante (+) / atras (-)      m/s
+            vy    izquierda (+) / derecha (-)   m/s
+            vyaw  girar izq (+) / der (-)       rad/s
+        """
+        vx = validar_velocidad(vx, self.perfil)
+        vy = validar_velocidad(vy, self.perfil)
+        vyaw = validar_velocidad_angular(vyaw, self.perfil)
+        tiempo = validar_duracion(tiempo, self.perfil)
+        self._sostener(vx, vy, vyaw, tiempo)
+        return self.verificar_estado()
+
     def detenerse(self) -> EstadoRobot:
         """Velocidad a cero. NO apaga el robot ni lo sienta ni lo desenergiza."""
         self._exigir_conexion()
@@ -247,6 +267,16 @@ class Robot:
                 time.sleep(2.0)
                 return self.verificar_estado()
         raise NotImplementedError("Este robot no tiene un gesto de saludo.")
+
+    def dar_la_mano(self) -> EstadoRobot:
+        """Extiende la mano. Solo el G1: el Go2 no tiene manos."""
+        self._exigir_conexion()
+        metodo = getattr(self._cliente, "ShakeHand", None)
+        if metodo is None:
+            raise NotImplementedError("Este robot no puede dar la mano.")
+        metodo()
+        time.sleep(2.0)
+        return self.verificar_estado()
 
     # ---------- alias tolerantes a errores de tipeo ----------
     def movmineto(self, *a, **k):

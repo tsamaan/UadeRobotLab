@@ -93,9 +93,14 @@ PERFILES: dict[str, PerfilSeguridad] = {
     # Desarrollo de Aplicaciones I. App movil con joystick: movimientos cortos
     # y repetidos, no rafagas largas.
     "tp04": PerfilSeguridad("tp04-desarrollo-i", 0.20, 0.50, 2.0, 25),
-    # Desarrollo de Aplicaciones II. Solo lectura de telemetria: no mueve nada.
-    # Se define igual para que el preflight de bateria tenga contra que validar.
-    "tp05": PerfilSeguridad("tp05-desarrollo-ii", 0.0, 0.0, 0.0, 25),
+    # Desarrollo de Aplicaciones II. El alumno hace un dashboard y NO mueve el
+    # robot: eso lo garantiza la API, que no tiene endpoints de movimiento.
+    #
+    # Pero el ROBOT si se mueve: el simulador lo hace pasear solo para que el
+    # dashboard tenga datos que graficar. Con velocidad 0 -- como estaba hasta
+    # el 2026-08-25 -- el robot quedaba clavado y todos los graficos eran
+    # lineas rectas, que es justo lo que hace inutil al TP.
+    "tp05": PerfilSeguridad("tp05-desarrollo-ii", 0.20, 0.50, 5.0, 25),
     # Paradigma Orientado a Objetos. Java, sin robot por defecto.
     "tp06": PerfilSeguridad("tp06-poo", 0.20, 0.50, 5.0, 25),
     # Inteligencia Artificial. El agente traduce lenguaje natural: conviene

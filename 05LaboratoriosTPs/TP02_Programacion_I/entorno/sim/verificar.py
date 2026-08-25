@@ -104,7 +104,13 @@ def _tiene(modulo: str) -> bool:
         return False
 
 
-def verificar(instalar: bool = True) -> Resultado:
+def verificar(instalar: bool = True, extras: tuple[str, ...] = ()) -> Resultado:
+    """Revisa el entorno. `extras` son librerias que pide una materia puntual.
+
+    El TP04 necesita FastAPI y uvicorn para levantar su backend; los demas TPs
+    no. Se piden solo donde hacen falta, para no engordar la instalacion de
+    todos por una materia.
+    """
     r = Resultado()
     print()
     print("  Revisando que este todo listo...")
@@ -162,6 +168,24 @@ def verificar(instalar: bool = True) -> Resultado:
             "Falta el SDK de Unitree. Se instala con:\n"
             "      git clone https://github.com/unitreerobotics/unitree_sdk2_python\n"
             f"      {sys.executable} -m pip install --user -e unitree_sdk2_python")
+
+    # 4b. Librerias que pide la materia (TP04: el backend)
+    for paquete, para_que in extras:
+        modulo = paquete.split("==")[0].replace("-", "_")
+        if _tiene(modulo):
+            _ok(f"{paquete.split('==')[0]}", para_que)
+        elif instalar:
+            _arreglando(f"Instalando {paquete.split('==')[0]} ({para_que})...")
+            if _pip_install(paquete) and _tiene(modulo):
+                _ok(f"{paquete.split('==')[0]} instalado")
+            else:
+                _falta(paquete.split("==")[0])
+                r.problemas.append(
+                    f"No pude instalar {paquete}. Proba a mano:\n"
+                    f"      {sys.executable} -m pip install --user {paquete}")
+        else:
+            _falta(paquete.split("==")[0], para_que)
+            r.problemas.append(f"Falta {paquete} ({para_que}).")
 
     # 5. El repo oficial: modelos 3D + bridge DDS
     repo = buscar_repo_oficial()

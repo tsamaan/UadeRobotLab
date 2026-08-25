@@ -66,6 +66,8 @@ def main(argv=None) -> int:
     ap.add_argument("--domain", type=int, default=0)
     ap.add_argument("--interfaz", default="lo")
     ap.add_argument("--grilla", help="mapa JSON de navegacion (TP03)")
+    ap.add_argument("--sin-paseo", action="store_true",
+                    help="TP05: deja el robot quieto en vez de pasearlo")
     ap.add_argument("--sin-ventana", action="store_true")
     ap.add_argument("--silencioso", action="store_true")
     ap.add_argument("--solo-revisar", action="store_true",
@@ -73,7 +75,14 @@ def main(argv=None) -> int:
     args = ap.parse_args(argv)
 
     # 1. Verificar el entorno ANTES de prometer nada.
-    r = verificar(instalar=not args.solo_revisar)
+    #    El TP04 necesita el backend; los demas no.
+    # TP04 y TP05 levantan un backend HTTP; los demas no necesitan nada de esto.
+    extras = ()
+    if args.materia in ("tp04", "tp05"):
+        que = ("de la app" if args.materia == "tp04" else "del dashboard")
+        extras = (("fastapi", f"el backend {que}"),
+                  ("uvicorn", "el servidor del backend"))
+    r = verificar(instalar=not args.solo_revisar, extras=extras)
     if not informar(r):
         return 1
     if args.solo_revisar:
@@ -166,6 +175,14 @@ def main(argv=None) -> int:
 
     signal.signal(signal.SIGINT, _cerrar)
     signal.signal(signal.SIGTERM, _cerrar)
+
+    # TP05: el robot se pasea solo para que el dashboard tenga que graficar.
+    paseo = None
+    if args.materia == "tp05" and not args.sin_paseo:
+        from .paseo import Paseo
+
+        paseo = Paseo(mundo, verboso=not args.silencioso)
+        paseo.arrancar()
 
     from .visor import mujoco_disponible
 
