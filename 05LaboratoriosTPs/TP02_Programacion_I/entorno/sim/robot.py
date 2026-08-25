@@ -125,12 +125,49 @@ class Robot:
             self._cliente.StandUp()
             nombre = "Unitree Go2 (perro)"
 
-        time.sleep(0.3)
+        # VERIFICAR QUE EL SERVICIO RESPONDE DE VERDAD.
+        #
+        # Move() del SDK descarta el codigo de retorno. Si el servicio de
+        # locomocion todavia no esta arriba -- por ejemplo si el programa
+        # arranca un segundo antes que el simulador -- las ordenes se pierden
+        # en silencio: el alumno ve "11 ordenes ejecutadas" y un robot que no
+        # se movio ni un centimetro.
+        #
+        # Por eso hacemos un ida y vuelta con una llamada que SI devuelve
+        # codigo, y reintentamos unos segundos por si el simulador esta
+        # terminando de levantar.
+        self._verificar_servicio()
+
         print(f"[OK] Conectado a {nombre}.")
         print(f"     Limites: {self.perfil.velocidad_max} m/s, "
               f"{self.perfil.velocidad_angular_max} rad/s, "
               f"{self.perfil.duracion_max} s por orden.")
         return self.verificar_estado()
+
+    def _verificar_servicio(self, intentos: int = 12, espera: float = 0.5) -> None:
+        ultimo = None
+        for _ in range(intentos):
+            try:
+                if self.modelo == "g1":
+                    codigo, _dato = self._cliente.GetFsmId()
+                else:
+                    codigo = self._cliente.StandUp()
+                if codigo == 0:
+                    return
+                ultimo = f"codigo {codigo}"
+            except Exception as exc:
+                ultimo = str(exc)
+            time.sleep(espera)
+
+        raise NoHaySimulador(
+            "Me conecte al robot pero NO responde a las ordenes"
+            + (f" ({ultimo})" if ultimo else "") + ".\n\n"
+            "  Casi siempre es una de estas dos:\n"
+            "    1. El simulador todavia estaba abriendo. Espera a que la\n"
+            "       ventana aparezca del todo y volve a ejecutar.\n"
+            "    2. El simulador no esta abierto. Abri INICIAR_SIMULADOR.\n\n"
+            "  (Se corta aca a proposito: si siguieramos, las ordenes se\n"
+            "   perderian en silencio y pareceria que tu programa anda.)")
 
     def desconectar(self) -> None:
         try:

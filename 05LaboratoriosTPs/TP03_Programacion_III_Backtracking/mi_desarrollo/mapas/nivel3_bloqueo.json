@@ -1,0 +1,16 @@
+{
+  "nombre": "Nivel 3 - Fracaso de la estrategia",
+  "descripcion": "SI existe un camino al destino (8 pasos), pero una estrategia que solo mira la distancia queda encerrada sin salida. El punto de quiebre es un empate: desde (2,3) la celda de la derecha y la de abajo estan a la misma distancia, y elegir la de la derecha lleva a un callejon.",
+  "grilla": [
+    [0, 1, 0, 0, 0],
+    [0, 1, 0, 0, 0],
+    [0, 0, 0, 0, 0],
+    [0, 0, 0, 0, 1],
+    [0, 0, 0, 0, 0]
+  ],
+  "inicio": [0, 0],
+  "destino": [4, 4],
+  "tamano_celda_metros": 0.50,
+  "orientacion_inicial": "ESTE",
+  "maximo_pasos": 30
+}

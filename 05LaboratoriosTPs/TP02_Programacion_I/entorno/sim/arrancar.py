@@ -48,9 +48,10 @@ def preparar_config(robot, repo: str, domain: int, interfaz: str):
 
 class SimuladorOficial:
     def __init__(self, mundo, robot, repo: str, domain: int = 0,
-                 interfaz: str = "lo", verboso: bool = True):
+                 interfaz: str = "lo", verboso: bool = True, mapa=None):
         self.mundo = mundo
         self.robot = robot
+        self.mapa = mapa
         self.repo = repo
         self.verboso = verboso
 
@@ -145,6 +146,16 @@ class SimuladorOficial:
         ) as v:
             v.cam.distance = 3.5 if self.robot.tipo == "humanoide" else 2.6
             v.cam.elevation = -20
+            if self.mapa is not None:
+                from .dibujo import dibujar
+                # Se dibuja sobre la escena OFICIAL, sin modificarla.
+                dibujar(v.user_scn, self.mapa)
+                v.cam.distance = max(
+                    3.0, 1.6 * max(self.mapa.filas, self.mapa.columnas)
+                    * self.mapa.tamano_celda)
+                cx = (self.mapa.columnas - 1) / 2 * self.mapa.tamano_celda
+                cy = -(self.mapa.filas - 1) / 2 * self.mapa.tamano_celda
+                v.cam.lookat[:] = [cx, cy, 0.0]
             self.iniciar_dds()
             periodo = self.cfg.VIEWER_DT
             while v.is_running():
@@ -152,6 +163,9 @@ class SimuladorOficial:
                 self.mundo.avanzar()
                 self._escribir_pose()
                 self._volcar_avisos()
+                if self.mapa is not None and self._ruta_cambio():
+                    from .dibujo import dibujar
+                    dibujar(v.user_scn, self.mapa)
                 v.sync()
                 resto = periodo - (time.perf_counter() - inicio)
                 if resto > 0:
@@ -164,6 +178,15 @@ class SimuladorOficial:
             self._escribir_pose()
             self._volcar_avisos()
             time.sleep(self.cfg.VIEWER_DT)
+
+    _ultima_ruta = None
+
+    def _ruta_cambio(self) -> bool:
+        actual = len(self.mapa.ruta) if self.mapa.ruta else 0
+        if actual != self._ultima_ruta:
+            self._ultima_ruta = actual
+            return True
+        return False
 
     def _volcar_avisos(self):
         if self.mundo.avisos and self.verboso:
