@@ -26,6 +26,9 @@ red especial.**
 |---|---|---|
 | `TP01_Fundamentos_de_Informatica` | Fundamentos de Informatica | Programacion secuencial |
 | `TP02_Programacion_I` | Programacion I | Controlador de misiones: validacion y reporte |
+| `TP03_Programacion_III_Backtracking` | Programacion III | Navegacion en grilla con backtracking |
+| `TP03_Programacion_III_Greedy` | Programacion III | Navegacion en grilla con estrategia voraz |
+| `TP07_Inteligencia_Artificial` | Inteligencia Artificial | Agente que interpreta lenguaje natural |
 
 Cada carpeta trae un `INICIAR_SIMULADOR` (`.bat` para Windows, `.sh` para
 Linux/macOS) que verifica el entorno, instala lo que falte, pregunta si se
