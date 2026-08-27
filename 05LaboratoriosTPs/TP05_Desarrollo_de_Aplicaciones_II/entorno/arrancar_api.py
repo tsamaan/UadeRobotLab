@@ -4,7 +4,7 @@ Lo llama INICIAR_TP05. No hace falta ejecutarlo a mano.
 
 Es EXACTAMENTE el mismo backend que corre en la notebook del laboratorio
 contra el robot fisico. Lo unico que cambia es de donde lee: aca del
-simulador por DDS local, alla del robot por RJ-45.
+simulador por un socket local, alla del robot por RJ-45 y DDS.
 """
 
 from __future__ import annotations
@@ -44,7 +44,9 @@ def main(argv=None) -> int:
     if args.demo:
         lector, modo = DemoReader(args.robot), "demo"
     else:
-        # 'lo' y dominio 0: la misma configuracion que usa el simulador.
+        # El lector del paquete habla por el socket local del simulador. El
+        # argumento de interfaz se acepta y se ignora: existe para que este
+        # archivo sea el MISMO en el paquete y en el laboratorio fisico.
         lector = TelemetryReader(args.robot, network_interface="lo")
         if not lector.esperar_primer_dato(timeout=8.0):
             print("\n  No llegan datos del simulador.")

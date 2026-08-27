@@ -168,7 +168,8 @@ Linux: `pkill -f "python.*-m sim"`.
 25 casos y la accuracy funcionan sin robot; el TP se puede hacer casi entero
 así.
 
-**`Could not locate cyclonedds`** — ver `INSTALACION.md`, paso 3.
+**`Could not locate cyclonedds`** — no debería aparecer más: CycloneDDS
+ya no se usa. Si sale, estás con una carpeta vieja.
 
 **pip falla con errores SSL** — agregá
 `--trusted-host pypi.org --trusted-host files.pythonhosted.org`.

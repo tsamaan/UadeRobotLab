@@ -81,6 +81,31 @@ class RobotBridge:
             print(f"[BRIDGE] Fallo el movimiento: {exc}")
             return False
 
+    def mover_durante(self, vx: float, vy: float, vyaw: float,
+                      tiempo: float) -> bool:
+        """Sostiene las tres velocidades 'tiempo' segundos y despues frena.
+
+        Es la forma "velocidad y tiempo", la misma primitiva que usan los otros
+        seis TPs. El simulador ya sostiene y frena solo, asi que aca alcanza con
+        pasarle la duracion; en el laboratorio fisico el bridge tiene que
+        refrescar el Move() cada 100 ms porque el del SDK vence al segundo.
+        """
+        if self._robot is None:
+            return False
+        try:
+            if not (vx or vy or vyaw):
+                self._robot.detenerse()
+            else:
+                self._robot.mover(vx=vx, vy=vy, vyaw=vyaw, tiempo=tiempo)
+                self._robot.detenerse()
+            return True
+        except ErrorDeSeguridad as exc:
+            print(f"[BRIDGE] {exc}")
+            return False
+        except Exception as exc:
+            print(f"[BRIDGE] Fallo el movimiento: {exc}")
+            return False
+
     def avanzar(self, velocidad: float = 0.2, duracion: float = 1.0) -> bool:
         return self._intentar("avanzar", velocidad=velocidad, tiempo=duracion)
 
@@ -160,6 +185,9 @@ class MockBridge(RobotBridge):
         return True
 
     def mover(self, vx, vy, vyaw):
+        return True
+
+    def mover_durante(self, vx, vy, vyaw, tiempo):
         return True
 
     def verificar_estado(self):

@@ -31,11 +31,12 @@ Programación secuencial: una rutina de pasos ordenados. El alumno entrega
 
 Seguí **`INSTALACION.md`**. Instala, en este orden:
 
-1. Python 3.8+
-2. MuJoCo (ventana 3D)
-3. CycloneDDS 0.10.2
-4. SDK de Unitree (`00SDK/unitree_sdk2_python`)
-5. Simulador oficial (`04Simuladores/unitree_mujoco`)
+1. Python 3.10 o más nuevo
+2. MuJoCo (la ventana 3D)
+
+**Y nada más.** Los modelos del robot ya vienen en la carpeta. No hace falta
+CycloneDDS ni el SDK de Unitree: no se pueden instalar en macOS ni en Windows
+y el simulador ya no los usa.
 
 > El script de inicio intenta instalar solo lo que falte. `INSTALACION.md` es
 > para cuando algo falla o querés entender el detalle.
@@ -140,8 +141,10 @@ la visita.
 El alumno entrega `mi_tp01.py`. El día de la visita, el responsable del robot
 copia ese archivo al laboratorio físico y lo ejecuta **sin modificarlo**.
 
-Funciona porque el alumno ya está usando el SDK real: lo único que cambia entre
-simulador y robot es el dominio DDS y la interfaz de red.
+Funciona porque lo que coincide es **el contrato de la API** —
+`avanzar(velocidad, tiempo)`, `girar(velocidad, tiempo)`—, no el cable. En el
+simulador esas órdenes viajan por un socket local; contra el robot, por DDS con
+el SDK oficial de Unitree. El archivo del alumno es el mismo.
 
 Antes de cualquier movimiento real, el laboratorio verifica red, batería y
 estado del robot, y **bloquea la ejecución si no puede confirmarlos**.
@@ -155,15 +158,15 @@ Por si necesitás explicar qué está pasando, o depurar.
 | Componente | Qué hace |
 |---|---|
 | `unitree_mujoco` (oficial) | modelos 3D y escenas de los robots |
-| `UnitreeSdk2Bridge` (oficial) | publica `rt/lowstate`, escucha `rt/lowcmd` |
-| `servicio_sport.py` | servicio de locomoción del G1 (`LocoClient`) |
-| `servicio_sport_go2.py` | servicio de locomoción del Go2 (`SportClient`) |
+| `local.py` | el socket que une el programa del alumno con el simulador |
+| `simulador.py` | el simulador que se reparte: MuJoCo + socket, sin DDS |
+| `arrancar.py` | el camino DDS con el SDK real (solo Linux, `--dds`) |
 | `mundo.py` | pose del robot e integración del movimiento |
 | `safety.py` | límites: techo físico + perfil por materia |
 | `robot.py` | la API que usa el alumno |
 
-DDS corre en **dominio 0, interfaz `lo`** (loopback). El aviso
-`selected interface "lo" is not multicast-capable` es normal.
+El simulador escucha en **127.0.0.1:8765**. Es un socket local: no sale
+de la máquina y funciona igual en Windows, macOS y Linux.
 
 Opciones útiles:
 
@@ -191,9 +194,9 @@ igual** en modo consola.
 El script prueba cada uno y elige el que tenga MuJoCo instalado. Si aun así
 falla, instalá MuJoCo en el Python por defecto.
 
-**`Could not locate cyclonedds` al instalar el SDK**
-Ver `INSTALACION.md`, paso 3: hay que compilar CycloneDDS y exportar
-`CYCLONEDDS_HOME`.
+**`Could not locate cyclonedds`**
+Ya no debería aparecer: **CycloneDDS no se usa más**. Si aparece, estás
+siguiendo una guía vieja o corriendo el simulador con `--dds`.
 
 **pip falla con errores SSL en la facultad**
 La red intercepta certificados. Agregá

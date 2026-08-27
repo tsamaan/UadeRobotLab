@@ -45,8 +45,10 @@ reescribieron los datos**, no se adaptó la API.
 | Estado | ✅ **terminado y verificado** | ⬜ pendiente |
 
 Lo único que viaja entre los dos es **el archivo del alumno**, `mi_tp02.py`.
-Funciona en ambos porque los dos usan el **mismo SDK real de Unitree**: lo único
-que cambia es el dominio DDS y la interfaz de red.
+Funciona en ambos porque lo que coincide es **el contrato de la API** —
+`avanzar(velocidad, tiempo)`, `girar(velocidad, tiempo)`—, no el transporte. En
+el paquete esas órdenes van por un socket local; contra el robot, por DDS con el
+SDK oficial.
 
 ---
 

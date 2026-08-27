@@ -25,8 +25,13 @@ from dataclasses import dataclass, field
 
 # Donde buscar los modelos oficiales, en orden.
 UBICACIONES = [
-    os.path.expanduser("~/unitree_libs/unitree_mujoco/unitree_robots"),
+    # Primero los que vienen DENTRO del paquete: es lo que tiene un profesor
+    # que bajo su carpeta y nada mas. Antes iba primero ~/unitree_libs, asi que
+    # en la maquina de Teo se usaban esos y los del paquete no se probaban nunca.
+    os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                 "unitree_mujoco", "unitree_robots"),
     os.path.join(os.path.dirname(os.path.abspath(__file__)), "unitree_robots"),
+    os.path.expanduser("~/unitree_libs/unitree_mujoco/unitree_robots"),
     os.path.expanduser("~/unitree_mujoco/unitree_robots"),
     os.path.join(os.getcwd(), "unitree_mujoco", "unitree_robots"),
 ]

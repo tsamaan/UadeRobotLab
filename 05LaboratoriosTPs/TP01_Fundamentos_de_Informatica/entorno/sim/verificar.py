@@ -26,7 +26,11 @@ def _ubicaciones_repo() -> list[str]:
     Asi el paquete se puede mover sin romper nada.
     """
     aqui = os.path.dirname(os.path.abspath(__file__))
-    rutas = []
+    # PRIMERO el que viene DENTRO del paquete. Es el caso normal para un
+    # profesor o un alumno: baja la carpeta de su TP y adentro esta todo lo que
+    # necesita, sin git, sin internet y sin depender de donde quedo instalado
+    # nada. Va primero para que el resultado no dependa de la maquina.
+    rutas = [os.path.join(aqui, "unitree_mujoco")]
     # Subimos buscando el arbol de UadeRobotLab.
     d = aqui
     for _ in range(6):
@@ -104,12 +108,18 @@ def _tiene(modulo: str) -> bool:
         return False
 
 
-def verificar(instalar: bool = True, extras: tuple[str, ...] = ()) -> Resultado:
+def verificar(instalar: bool = True, extras: tuple[str, ...] = (),
+              dds: bool = False) -> Resultado:
     """Revisa el entorno. `extras` son librerias que pide una materia puntual.
 
     El TP04 necesita FastAPI y uvicorn para levantar su backend; los demas TPs
     no. Se piden solo donde hacen falta, para no engordar la instalacion de
     todos por una materia.
+
+    `dds=True` pide ademas CycloneDDS y el SDK de Unitree. Va apagado por
+    defecto y a proposito: son las dos piezas que NO se pueden instalar en
+    macOS ni en Windows, y el paquete que se reparte no las usa. Ver la
+    cabecera de `local.py`.
     """
     r = Resultado()
     print()
@@ -142,32 +152,62 @@ def verificar(instalar: bool = True, extras: tuple[str, ...] = ()) -> Resultado:
         _falta("MuJoCo")
         r.problemas.append("Falta MuJoCo.")
 
-    # 3. CycloneDDS: tiene que ir ANTES del SDK, que lo necesita para compilar.
-    if _tiene("cyclonedds"):
-        _ok("CycloneDDS")
-    elif instalar:
-        _arreglando("Instalando CycloneDDS (comunicacion con el robot)...")
-        if _pip_install("cyclonedds==0.10.2") and _tiene("cyclonedds"):
-            _ok("CycloneDDS instalado")
+    # 3 y 4. CycloneDDS y el SDK de Unitree: SOLO en modo --dds.
+    #
+    # El paquete normal no los usa, y es deliberado: CycloneDDS 0.10.2 solo
+    # publica wheels hasta cp310 (con 3.11+ pip intenta compilar y falla), y
+    # `unitree_sdk2py` resuelve `timerfd_create` por ctypes al importar, que es
+    # una syscall de Linux. En macOS y Windows no hay forma. Pedirlos a todo el
+    # mundo era regalarle a cada profesor una tarde de pelea con pip.
+    if dds:
+        if _tiene("cyclonedds"):
+            _ok("CycloneDDS")
+        elif instalar and v < (3, 11):
+            _arreglando("Instalando CycloneDDS (modo --dds)...")
+            if _pip_install("cyclonedds==0.10.2") and _tiene("cyclonedds"):
+                _ok("CycloneDDS instalado")
+            else:
+                _falta("CycloneDDS")
+                r.problemas.append(
+                    "No pude instalar CycloneDDS 0.10.2.\n"
+                    f"      Proba: {sys.executable} -m pip install --user "
+                    f"cyclonedds==0.10.2")
         else:
             _falta("CycloneDDS")
             r.problemas.append(
-                "No pude instalar CycloneDDS 0.10.2.\n"
-                "      Es la version exacta que pide el SDK de Unitree.\n"
-                f"      Proba: {sys.executable} -m pip install --user cyclonedds==0.10.2")
-    else:
-        _falta("CycloneDDS")
-        r.problemas.append("Falta CycloneDDS.")
+                "Falta CycloneDDS y no se puede instalar en este Python.\n"
+                f"      Tenes {v.major}.{v.minor} y la 0.10.2 solo tiene wheels\n"
+                "      hasta 3.10. El modo --dds necesita Python 3.10 y Linux.\n"
+                "      Sin --dds, el simulador anda igual y no hace falta nada "
+                "de esto.")
 
-    # 4. SDK de Unitree
-    if _tiene("unitree_sdk2py"):
-        _ok("SDK de Unitree (unitree_sdk2py)")
-    else:
-        _falta("SDK de Unitree")
-        r.problemas.append(
-            "Falta el SDK de Unitree. Se instala con:\n"
-            "      git clone https://github.com/unitreerobotics/unitree_sdk2_python\n"
-            f"      {sys.executable} -m pip install --user -e unitree_sdk2_python")
+        if _tiene("unitree_sdk2py"):
+            _ok("SDK de Unitree (unitree_sdk2py)")
+        else:
+            _falta("SDK de Unitree")
+            r.problemas.append(
+                "Falta el SDK de Unitree. Se instala con:\n"
+                "      git clone https://github.com/unitreerobotics/"
+                "unitree_sdk2_python\n"
+                f"      {sys.executable} -m pip install --user -e "
+                f"unitree_sdk2_python")
+
+        # El bridge oficial importa pygame incondicionalmente, aunque no haya
+        # joystick. Sin esto el import explota y el error no dice por que.
+        if _tiene("pygame"):
+            _ok("pygame", "lo pide el bridge oficial de Unitree")
+        elif instalar:
+            _arreglando("Instalando pygame (lo pide el bridge oficial)...")
+            if _pip_install("pygame") and _tiene("pygame"):
+                _ok("pygame instalado")
+            else:
+                _falta("pygame")
+                r.problemas.append(
+                    f"Falta pygame. Proba: {sys.executable} -m pip install "
+                    f"--user pygame")
+        else:
+            _falta("pygame", "lo pide el bridge oficial de Unitree")
+            r.problemas.append("Falta pygame.")
 
     # 4b. Librerias que pide la materia (TP04: el backend)
     for paquete, para_que in extras:
@@ -187,10 +227,12 @@ def verificar(instalar: bool = True, extras: tuple[str, ...] = ()) -> Resultado:
             _falta(paquete.split("==")[0], para_que)
             r.problemas.append(f"Falta {paquete} ({para_que}).")
 
-    # 5. El repo oficial: modelos 3D + bridge DDS
+    # 5. Los modelos oficiales. Vienen DENTRO del paquete: normalmente esto no
+    # hace nada. El git clone queda como red de seguridad por si alguien corre
+    # el nucleo fuera de un paquete armado.
     repo = buscar_repo_oficial()
     if repo:
-        _ok("Simulador oficial de Unitree", repo)
+        _ok("Modelos oficiales de Unitree", repo)
         r.repo = repo
     elif instalar and shutil.which("git"):
         destino = UBICACIONES_REPO[0]

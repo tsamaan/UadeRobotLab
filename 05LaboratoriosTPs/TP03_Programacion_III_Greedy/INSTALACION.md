@@ -15,15 +15,29 @@ Si ya tenés todo instalado, andá directo a `LEEME_DOCENTE.md` o `LEEME_ESTUDIA
 
 | Pieza | Para qué sirve | Dónde vive |
 |---|---|---|
-| **Python 3.8+** | ejecuta todo | del sistema |
+| **Python 3.10+** | ejecuta todo | del sistema |
 | **MuJoCo** | la ventana 3D donde ves el robot | `pip` |
-| **CycloneDDS 0.10.2** | el protocolo con el que se habla al robot | `pip` |
-| **unitree_sdk2_python** | el SDK oficial de Unitree | `00SDK/` |
-| **unitree_mujoco** | el simulador oficial (modelos 3D + puente DDS) | `04Simuladores/` |
+| **Modelos del G1 y el Go2** | el robot que ves en pantalla | **ya viene en el paquete** |
 | **Carpeta del laboratorio** | el TP en sí | `05LaboratoriosTPs/` |
 
-El orden importa: **CycloneDDS antes que el SDK**, porque el SDK se compila
-contra él.
+**Eso es todo.** Un `pip install mujoco` y listo. No hace falta CycloneDDS, ni
+el SDK de Unitree, ni compilar nada, ni tener internet después de bajar la
+carpeta.
+
+> **Si venís de una versión anterior de este documento:** antes acá pedíamos
+> CycloneDDS y `unitree_sdk2_python`. Ya **no hacen falta** y se sacaron a
+> propósito:
+>
+> - `cyclonedds==0.10.2` solo publica paquetes precompilados hasta Python 3.10.
+>   Con 3.11 o más nuevo, `pip` intenta compilarlo desde el código fuente y
+>   falla con *"Could not locate cyclonedds"*.
+> - El SDK de Unitree llama a `timerfd_create`, que existe **solo en Linux**.
+>   En macOS y en Windows el import explota con *"symbol not found"*.
+>
+> El simulador ahora se comunica por un socket local en `127.0.0.1`, que
+> funciona igual en Windows, macOS y Linux. **El código que escribe el alumno
+> no cambia ni una línea**: sigue siendo `robot.avanzar(velocidad, tiempo)`, y
+> el robot que se ve en pantalla sigue siendo el modelo oficial de Unitree.
 
 ---
 
@@ -82,102 +96,38 @@ python3 -c "import mujoco; print(mujoco.__version__)"
 
 ---
 
-## Paso 3 — CycloneDDS
+## Paso 3 — Los modelos del robot (ya están)
 
-**Tiene que ir antes del SDK.** La versión es exacta: el SDK de Unitree pide
-`0.10.2`.
+**Ya viene adentro del paquete. No hay que descargar nada.**
 
-```bash
-python3 -m pip install --user cyclonedds==0.10.2
-```
+Los modelos 3D del G1 y del Go2 viajan dentro de tu carpeta, en
+`entorno/sim/unitree_mujoco/`. Son unos 46 MB.
 
-Verificar:
+Antes había que hacer un `git clone` la primera vez, y eso pedía git, internet
+y que la red de la facultad no rompiera la descarga. Ahora la carpeta del TP se
+abre sola, sin conexión.
 
-```bash
-python3 -c "import cyclonedds; print('ok')"
-```
-
-### Si falla con "Could not locate cyclonedds"
-
-Pasa cuando pip no encuentra una versión precompilada para tu sistema. Hay que
-compilarla y decirle al SDK dónde quedó:
+Verificar que estén (opcional):
 
 ```bash
-git clone -b releases/0.10.x https://github.com/eclipse-cyclonedds/cyclonedds
-cd cyclonedds && mkdir build && cd build
-cmake .. -DCMAKE_INSTALL_PREFIX=../install -DBUILD_IDLC=ON
-cmake --build . --target install
-cd ../..
-export CYCLONEDDS_HOME="$(pwd)/cyclonedds/install"
+ls entorno/sim/unitree_mujoco/unitree_robots/
+# tiene que aparecer: g1  go2
 ```
 
-Esa variable `CYCLONEDDS_HOME` tiene que estar definida **en el paso 4**, cuando
-instalás el SDK.
+> Son los modelos **oficiales** de Unitree, redistribuidos bajo licencia
+> BSD 3-Clause. El texto de la licencia va en
+> `entorno/sim/unitree_mujoco/LICENSE`.
+>
+> Del repo oficial se recortó lo que no se usa: vienen sólo el G1 y el Go2 (no
+> los otros ocho robots) y de cada uno sólo las mallas que el modelo referencia.
+> El repo completo son 299 MB.
+
+Si tenés el repo oficial clonado aparte, se sigue usando el del paquete: va
+primero a propósito, para que el resultado no dependa de cada máquina.
 
 ---
 
-## Paso 4 — SDK de Unitree para Python
-
-El SDK vive en `00SDK/unitree_sdk2_python`.
-
-> ⚠️ **Esa carpeta puede estar vacía.** En el repositorio figura como
-> referencia, pero el contenido no siempre viene clonado. Si `ls 00SDK/unitree_sdk2_python`
-> no muestra nada, cloná el repo primero.
-
-```bash
-cd 00SDK
-git clone https://github.com/unitreerobotics/unitree_sdk2_python
-python3 -m pip install --user -e unitree_sdk2_python
-```
-
-Si tuviste que compilar CycloneDDS a mano en el paso 3, la instalación va así:
-
-```bash
-CYCLONEDDS_HOME=/ruta/a/cyclonedds/install \
-  python3 -m pip install --user -e unitree_sdk2_python
-```
-
-Verificar:
-
-```bash
-python3 -c "import unitree_sdk2py; print('ok')"
-```
-
-### El SDK de C++ (opcional)
-
-`00SDK/unitree_sdk2` es el SDK de C++. **No hace falta para los laboratorios**,
-que son todos en Python. Sólo se usa para proyectos en C++.
-
----
-
-## Paso 5 — El simulador oficial de Unitree
-
-Son los modelos 3D de los robots y el puente DDS que los conecta con el SDK.
-
-```bash
-cd 04Simuladores
-git clone https://github.com/unitreerobotics/unitree_mujoco
-```
-
-El script del laboratorio lo busca solo, en este orden:
-
-1. `04Simuladores/UnitreeMujocoOficial/unitree_mujoco/`
-2. `04Simuladores/unitree_mujoco/`
-3. `~/unitree_libs/unitree_mujoco/`
-4. `~/unitree_mujoco/`
-
-Cualquiera de esas sirve. Si no lo encuentra en ninguna, lo descarga solo.
-
-Verificar que estén los modelos:
-
-```bash
-ls 04Simuladores/unitree_mujoco/unitree_robots/
-# tiene que aparecer: g1  go2  h1  b2 ...
-```
-
----
-
-## Paso 6 — Probar que todo funciona
+## Paso 4 — Probar que todo funciona
 
 Desde la carpeta del laboratorio:
 
@@ -191,12 +141,13 @@ Tiene que dar:
 ```
   [OK]    Python 3.12.3
   [OK]    MuJoCo v3.11.0
-  [OK]    CycloneDDS
-  [OK]    SDK de Unitree (unitree_sdk2py)
-  [OK]    Simulador oficial de Unitree /ruta/al/repo
+  [OK]    Modelos oficiales de Unitree /ruta/a/tu/carpeta/entorno/sim/unitree_mujoco
 
   Todo listo.
 ```
+
+Tres líneas. Si tenés una guía que espera cinco y menciona CycloneDDS o el SDK
+de Unitree, es de la versión anterior.
 
 Si alguna línea dice `[FALTA]`, el mensaje indica qué hacer.
 
@@ -220,11 +171,22 @@ Estás en una red que intercepta certificados (típico en universidades). Agreg�
 `--trusted-host pypi.org --trusted-host files.pythonhosted.org`, o instalá
 desde otra red.
 
-**`Could not locate cyclonedds` al instalar el SDK**
-Ver paso 3: hay que compilar CycloneDDS y exportar `CYCLONEDDS_HOME`.
+**`Could not locate cyclonedds`**
+Estás siguiendo una guía vieja. **CycloneDDS ya no hace falta.** Si aparece, es
+porque alguien está corriendo el simulador con `--dds`, que es un modo de
+prueba interno que solo funciona en Linux con Python 3.10.
+
+**`timerfd_create: symbol not found` (macOS)**
+Lo mismo: es el SDK de Unitree, que **ya no se usa** en el paquete. Bajá la
+versión nueva de la carpeta del TP.
 
 **`selected interface "lo" is not multicast-capable`**
-No es un error. Es un aviso normal de CycloneDDS en simulación local.
+Tampoco aparece más: era un aviso de CycloneDDS y ya no hay CycloneDDS.
+
+**`Address already in use` / el puerto 8765 está ocupado**
+Quedó otro simulador abierto. Cerralo y volvé a intentar. Si estás seguro de
+que no hay ninguno, alguna otra aplicación está usando ese puerto: podés
+elegir otro con `--puerto 8766`.
 
 **Se abre el simulador pero sin ventana 3D**
 Falta MuJoCo, o la máquina no puede abrir ventanas (drivers, escritorio
@@ -234,7 +196,8 @@ robot en texto y el TP se puede hacer completo.
 **Dice "el simulador ya está abierto" y no veo ninguna ventana**
 Quedó un simulador corriendo de antes. Buscá la otra ventana (puede estar
 minimizada o en modo consola) y cerrala con Ctrl+C. En Linux:
-`pkill -f "python.*-m sim"`.
+`pkill -f "python.*-m sim"`. Si igual no arranca, borrá el
+archivo `uade_simulador_activo.json` de la carpeta temporal del sistema.
 
 **Tengo varios Python instalados y no encuentra MuJoCo**
 El script prueba cada Python disponible y elige el que tenga MuJoCo. Si aun así
@@ -247,19 +210,13 @@ falla, instalá MuJoCo en el Python que usás por defecto.
 ### Linux / macOS
 
 ```bash
-python3 -m pip install --user mujoco cyclonedds==0.10.2
-cd 00SDK && git clone https://github.com/unitreerobotics/unitree_sdk2_python
-python3 -m pip install --user -e unitree_sdk2_python && cd ..
-cd 04Simuladores && git clone https://github.com/unitreerobotics/unitree_mujoco && cd ..
+python3 -m pip install --user mujoco
 cd 05LaboratoriosTPs/TP01_Fundamentos_de_Informatica && ./INICIAR_SIMULADOR.sh
 ```
 
 ### Windows
 
 ```bat
-py -3 -m pip install --user mujoco cyclonedds==0.10.2
-cd 00SDK && git clone https://github.com/unitreerobotics/unitree_sdk2_python
-py -3 -m pip install --user -e unitree_sdk2_python && cd ..
-cd 04Simuladores && git clone https://github.com/unitreerobotics/unitree_mujoco && cd ..
+py -3 -m pip install --user mujoco
 cd 05LaboratoriosTPs\TP01_Fundamentos_de_Informatica && INICIAR_SIMULADOR.bat
 ```

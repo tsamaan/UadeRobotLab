@@ -48,6 +48,18 @@ comandos.
 
 Header: `X-Robot-Token: <tu token>`
 
+Hay **dos formas** de pedir un movimiento y las dos son válidas. Elegí una por
+pedido: **mezclarlas da error**, porque sería ambiguo cuál manda.
+
+| Forma | Cuándo se usa | Ejemplo |
+|---|---|---|
+| **Joystick** | control en vivo, el dedo apretado sobre un botón | `{"vx": 0.15}` |
+| **Velocidad y tiempo** | una orden con principio y fin, como en los otros TPs | `{"velocidad": 0.2, "tiempo": 2.0}` |
+
+---
+
+#### Forma 1 — joystick
+
 ```json
 { "vx": 0.15, "vy": 0.0, "vyaw": 0.0 }
 ```
@@ -78,6 +90,53 @@ Eso es a propósito: si tu app se cierra, se corta el WiFi o soltás el control,
 
 > Si mandás más de lo permitido, **no falla**: se recorta al máximo y sigue.
 > Un joystick que devuelve error en cada empujón sería inusable.
+>
+> Pero **te enterás**: cuando hubo recorte, la respuesta trae `recortado: true`
+> y `pedido` con lo que habías mandado. Mostralo en tu app.
+
+```json
+{ "ok": true, "vx": 0.2, "vy": 0.0, "vyaw": 0.0,
+  "recortado": true,
+  "pedido": { "vx": 5.0, "vy": 0.0, "vyaw": 0.0 },
+  "mensaje": "Se recorto al maximo permitido para esta materia. ..." }
+```
+
+---
+
+#### Forma 2 — velocidad y tiempo
+
+Es la primitiva de los otros seis TPs y la que usa el `LocoClient` del SDK.
+
+```json
+{ "velocidad": 0.2, "tiempo": 2.0 }
+```
+
+| Campo | Qué es | Rango |
+|---|---|---|
+| `velocidad` | adelante (+) / atrás (−) | −0.20 a 0.20 m/s |
+| `velocidad_angular` | girar izquierda (+) / derecha (−) | −0.50 a 0.50 rad/s |
+| `tiempo` | cuánto dura la orden | mayor que 0, hasta 2.0 s |
+
+**La distancia y el ángulo son derivados**, nunca datos de entrada:
+
+```
+distancia = velocidad x tiempo        0.2 m/s x 2.0 s = 0.40 m
+angulo    = velocidad_angular x tiempo   0.4 rad/s x 1.5 s = 0.60 rad
+```
+
+A diferencia del joystick, **este pedido no vuelve hasta que el movimiento
+terminó**, y el robot frena solo al final. No hay que repetirlo.
+
+Podés mandar `velocidad` y `velocidad_angular` juntas para hacer una curva.
+
+##### Errores que vas a ver seguido
+
+| Qué mandaste | Qué pasa |
+|---|---|
+| `{"velocidad": 0.2}` | **422** — falta `tiempo`. La distancia se deriva de los dos. |
+| `{"vx": 0.2, "tiempo": 1}` | **422** — estás mezclando las dos formas. |
+| `{"velocidad_x": 0.2}` | **422** — ese campo no existe. Antes esto devolvía `ok` y el robot no se movía. |
+| `{"velocidad": 0.2, "tiempo": -1}` | **422** — el tiempo tiene que ser mayor que cero. |
 
 ### `POST /parar`
 

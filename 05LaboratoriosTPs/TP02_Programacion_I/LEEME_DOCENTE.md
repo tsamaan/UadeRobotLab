@@ -38,8 +38,9 @@ el alumno.
 
 ### 1. Instalación (una vez por computadora)
 
-Seguí **`INSTALACION.md`**: Python, MuJoCo, CycloneDDS 0.10.2, SDK de Unitree y
-simulador oficial, en ese orden.
+Seguí **`INSTALACION.md`**. Son dos cosas: Python 3.10+ y MuJoCo. Los modelos
+del robot ya vienen en la carpeta; no hace falta CycloneDDS ni el SDK de
+Unitree.
 
 Para verificar sin abrir nada:
 
@@ -158,8 +159,10 @@ hoy contra el simulador oficial.
 El alumno entrega `mi_tp02.py`. El día de la visita, el responsable del robot
 copia ese archivo al laboratorio físico y lo ejecuta **sin modificarlo**.
 
-Funciona porque el alumno ya está usando el SDK real: lo único que cambia entre
-simulador y robot es el dominio DDS y la interfaz de red.
+Funciona porque lo que coincide es **el contrato de la API** —
+`avanzar(velocidad, tiempo)`, `girar(velocidad, tiempo)`—, no el cable. En el
+simulador esas órdenes viajan por un socket local; contra el robot, por DDS con
+el SDK oficial de Unitree. El archivo del alumno es el mismo.
 
 Antes de cualquier movimiento real, el laboratorio verifica red, batería y
 estado del robot, y **bloquea la ejecución si no puede confirmarlos**.
@@ -171,15 +174,15 @@ estado del robot, y **bloquea la ejecución si no puede confirmarlos**.
 | Componente | Qué hace |
 |---|---|
 | `unitree_mujoco` (oficial) | modelos 3D y escenas de los robots |
-| `UnitreeSdk2Bridge` (oficial) | publica `rt/lowstate`, escucha `rt/lowcmd` |
-| `servicio_sport.py` | servicio de locomoción del G1 (`LocoClient`) |
-| `servicio_sport_go2.py` | servicio de locomoción del Go2 (`SportClient`) |
+| `local.py` | el socket que une el programa del alumno con el simulador |
+| `simulador.py` | el simulador que se reparte: MuJoCo + socket, sin DDS |
+| `arrancar.py` | el camino DDS con el SDK real (solo Linux, `--dds`) |
 | `mundo.py` | pose del robot e integración del movimiento |
 | `safety.py` | límites: techo físico + perfil por materia |
 | `robot.py` | la API que usa el alumno |
 
-DDS corre en **dominio 0, interfaz `lo`**. El aviso
-`selected interface "lo" is not multicast-capable` es normal.
+El simulador escucha en **127.0.0.1:8765**. Es un socket local: no sale
+de la máquina y funciona igual en Windows, macOS y Linux.
 
 ```bash
 cd entorno
@@ -200,8 +203,9 @@ la consola que quedó abierta.
 Falta MuJoCo o la máquina no puede abrir ventanas. **El TP se hace igual** en
 modo consola.
 
-**`Could not locate cyclonedds` al instalar el SDK**
-Ver `INSTALACION.md`, paso 3: compilar CycloneDDS y exportar `CYCLONEDDS_HOME`.
+**`Could not locate cyclonedds`**
+Ya no debería aparecer: **CycloneDDS no se usa más**. Si aparece, estás
+siguiendo una guía vieja o corriendo el simulador con `--dds`.
 
 **pip falla con errores SSL en la facultad**
 La red intercepta certificados. Agregá

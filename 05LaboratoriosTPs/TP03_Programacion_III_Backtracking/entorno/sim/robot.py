@@ -1,8 +1,17 @@
 """La API que usan los alumnos. Contrato v1.0 (ver ~/Escritorio/CONTRATO_API.md).
 
-Por debajo usa el SDK REAL de Unitree: LocoClient para el G1, SportClient para
-el Go2. Los mismos objetos que se usan contra el robot fisico. Lo unico que
-cambia entre simulador y robot real son el dominio DDS y la interfaz de red.
+Tiene DOS transportes, y el codigo del alumno es el mismo en los dos:
+
+  - **simulador** (lo que se reparte): un socket local en 127.0.0.1. No necesita
+    CycloneDDS ni `unitree_sdk2py`, que no se pueden instalar en macOS ni en
+    Windows -- ver la cabecera de `local.py`. Solo hace falta MuJoCo.
+  - **robot real** (solo la notebook de Teo): el SDK de Unitree de verdad,
+    LocoClient para el G1 y SportClient para el Go2, por DDS.
+
+El cliente de los dos expone los MISMOS nombres de metodo (`Move`, `StopMove`,
+`WaveHand`...), asi que de `conectar()` para abajo no hay una sola rama por
+transporte. Lo unico que tiene que coincidir es el CONTRATO de la API, no el
+cable.
 
     from robot import Robot
 
@@ -88,18 +97,71 @@ class Robot:
             self.interfaz = interfaz or activo.get("interfaz", "lo")
             self.domain = domain if domain is not None else activo.get("domain", 0)
             self.perfil = obtener_perfil(materia or activo.get("materia", "tp01"))
+            self.transporte = activo.get("transporte", "local")
         else:
             # Robot fisico: lo usa el laboratorio, no el alumno.
             self.modelo = modelo or destino
             self.interfaz = interfaz or ""
             self.domain = domain if domain is not None else 0
             self.perfil = obtener_perfil(materia or "tp01")
+            self.transporte = "dds"      # el robot fisico habla por DDS
 
         self.destino = destino
         self._cliente = None
 
     # ---------- conexion ----------
     def conectar(self) -> EstadoRobot:
+        # El SIMULADOR decide el transporte, no el cliente: el mismo paquete se
+        # puede abrir en modo local (lo normal) o con --dds (el banco de pruebas
+        # de la notebook de Teo), y el programa del alumno no cambia.
+        if self.destino == "simulador" and self.transporte == "local":
+            return self._conectar_local()
+        return self._conectar_sdk()
+
+    def _conectar_local(self) -> EstadoRobot:
+        """Simulador: socket local. Es el camino que usan profesores y alumnos."""
+        from .local import ClienteLocal, ErrorTransporte, PUERTO
+
+        activo = _leer_activo()
+        puerto = int(activo.get("puerto", PUERTO))
+        self._cliente = ClienteLocal(puerto=puerto)
+        try:
+            self._cliente.Init()
+        except ErrorTransporte as exc:
+            self._cliente = None
+            raise NoHaySimulador(
+                f"{exc}\n"
+                "  1. Abri INICIAR_SIMULADOR y elegi el robot\n"
+                "  2. Espera a que aparezca la ventana\n"
+                "  3. Volve a ejecutar este programa") from exc
+
+        info = self._cliente.info or {}
+        self.modelo = info.get("robot", self.modelo)
+        nombre = ("Unitree G1 (humanoide)" if self.modelo == "g1"
+                  else "Unitree Go2 (perro)")
+
+        # EL SERVIDOR MANDA SOBRE LOS LIMITES.
+        #
+        # Si el cliente decidiera, alcanzaria con que el alumno declarara otra
+        # materia para aflojar el tope de velocidad. El simulador sabe con que
+        # perfil lo abrio el profesor, y ese es el que vale.
+        limites = info.get("limites") or {}
+        if limites:
+            self.perfil = self.perfil.__class__(
+                nombre=info.get("materia", self.perfil.nombre),
+                velocidad_max=limites.get("velocidad_max",
+                                          self.perfil.velocidad_max),
+                velocidad_angular_max=limites.get(
+                    "velocidad_angular_max", self.perfil.velocidad_angular_max),
+                duracion_max=limites.get("duracion_max",
+                                         self.perfil.duracion_max),
+                bateria_min=limites.get("bateria_min", self.perfil.bateria_min))
+
+        self._anunciar(nombre)
+        return self.verificar_estado()
+
+    def _conectar_sdk(self) -> EstadoRobot:
+        """Robot real por DDS. Solo corre en Linux, solo en la notebook de Teo."""
         from unitree_sdk2py.core.channel import ChannelFactoryInitialize
 
         if not _DDS_INICIADO["hecho"]:
@@ -137,12 +199,14 @@ class Robot:
         # codigo, y reintentamos unos segundos por si el simulador esta
         # terminando de levantar.
         self._verificar_servicio()
+        self._anunciar(nombre)
+        return self.verificar_estado()
 
+    def _anunciar(self, nombre: str) -> None:
         print(f"[OK] Conectado a {nombre}.")
         print(f"     Limites: {self.perfil.velocidad_max} m/s, "
               f"{self.perfil.velocidad_angular_max} rad/s, "
               f"{self.perfil.duracion_max} s por orden.")
-        return self.verificar_estado()
 
     def _verificar_servicio(self, intentos: int = 12, espera: float = 0.5) -> None:
         ultimo = None
@@ -174,12 +238,31 @@ class Robot:
             self.detenerse()
         except Exception:
             pass
+        cerrar = getattr(self._cliente, "Cerrar", None)
+        if cerrar is not None:
+            cerrar()          # el socket local: hay que soltarlo de verdad
         self._cliente = None
         print("[OK] Desconectado.")
 
     # ---------- consultas ----------
     def verificar_estado(self) -> EstadoRobot:
-        """Lee la pose desde el simulador. Contra el robot real vendria del DDS."""
+        """Donde esta el robot.
+
+        Con el socket se pregunta directo, que es lo mas fiel: la respuesta es
+        del mismo instante. El archivo de pose queda como respaldo -- lo usa el
+        camino DDS, donde la pose del G1 no viaja por ningun topico.
+        """
+        preguntar = getattr(self._cliente, "Estado", None)
+        if preguntar is not None:
+            try:
+                d = preguntar()
+                return EstadoRobot(
+                    x=d.get("x", 0.0), y=d.get("y", 0.0), z=d.get("z", 0.0),
+                    yaw=d.get("yaw", 0.0), accion=d.get("accion", "quieto"),
+                    bateria=d.get("bateria", 87))
+            except Exception:                                 # noqa: BLE001
+                pass   # si el socket fallo, probamos con el archivo
+
         a = _leer_activo()
         pose = a.get("pose_archivo")
         datos = {}
@@ -205,6 +288,8 @@ class Robot:
         """
         self._exigir_conexion()
         fin = time.monotonic() + tiempo
+        # Se refresca igual en los dos transportes: la orden VENCE. Si el
+        # programa del alumno muere a mitad de un avance, el robot frena solo.
         while time.monotonic() < fin:
             self._cliente.Move(vx, vy, vyaw)
             time.sleep(min(PASO_REFRESCO, max(0.0, fin - time.monotonic())))

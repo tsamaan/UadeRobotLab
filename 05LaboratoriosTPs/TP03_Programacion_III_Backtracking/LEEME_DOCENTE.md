@@ -154,7 +154,8 @@ Linux: `pkill -f "python.*-m sim"`. Windows: cerrá la consola abierta.
 **Se abre sin ventana 3D** — falta MuJoCo o la máquina no abre ventanas. El TP
 se hace igual en modo consola, con `mostrar_mapa()`.
 
-**`Could not locate cyclonedds`** — ver `INSTALACION.md`, paso 3.
+**`Could not locate cyclonedds`** — no debería aparecer más: CycloneDDS
+ya no se usa. Si sale, estás con una carpeta vieja.
 
 **pip falla con errores SSL** — agregá
 `--trusted-host pypi.org --trusted-host files.pythonhosted.org`.

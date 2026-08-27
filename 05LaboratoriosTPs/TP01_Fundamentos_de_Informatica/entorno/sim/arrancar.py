@@ -28,11 +28,42 @@ import time
 import types
 
 
+
+def _rellenar(msg, campo: str, valor) -> None:
+    """Escribe un valor en todos los slots de una secuencia del IDL.
+
+    Los campos Sequence[int] del IDL vienen con largo fijo: no se pueden
+    reasignar con una lista, hay que escribir slot por slot.
+    """
+    try:
+        seq = getattr(msg, campo)
+    except AttributeError:
+        return
+    try:
+        for i in range(len(seq)):
+            seq[i] = int(valor())
+    except (TypeError, ValueError, IndexError):
+        pass
+
+
 def preparar_config(robot, repo: str, domain: int, interfaz: str):
     """Deja un modulo `config` en sys.modules para el codigo oficial."""
     cfg = types.ModuleType("config")
     cfg.ROBOT = robot.clave
-    cfg.ROBOT_SCENE = os.path.join(repo, "unitree_robots", robot.escena)
+    # OJO: hay que pedirle la ruta al robot, NO armarla con un join.
+    #
+    # `ruta_escena()` GENERA la escena limpia del Go2 si todavia no existe
+    # (`scene_uade.xml`, que no es un archivo del repo oficial). Armando la
+    # ruta a mano, en una maquina donde nunca se genero, el simulador moria con
+    # "No encuentro la escena oficial". En la de Teo no se veia porque el
+    # archivo habia quedado escrito desde la primera vez.
+    ruta = robot.ruta_escena()
+    if not ruta:
+        raise FileNotFoundError(
+            f"No encuentro el modelo de {robot.clave} ni pude generar su "
+            f"escena. Fijate que este 'entorno/sim/unitree_mujoco/"
+            f"unitree_robots/{robot.clave}/' dentro de tu carpeta.")
+    cfg.ROBOT_SCENE = ruta
     cfg.DOMAIN_ID = domain
     cfg.INTERFACE = interfaz
     cfg.USE_JOYSTICK = 0            # sin joystick: nadie tiene uno en clase
@@ -83,7 +114,16 @@ class SimuladorOficial:
         self.telemetria = Telemetria(self.model.nu)
         self._qpos_previo = None
 
-    # ---------- DDS ----------
+    # ---------- transporte ----------
+    def iniciar_transporte(self):
+        """Punto de enganche: `SimuladorLocal` lo reemplaza por el socket.
+
+        Los bucles de `correr_*` llaman aca y no directo a `iniciar_dds`, asi
+        el modo local reusa TODO el resto -- MuJoCo, el visor, la pose, la
+        telemetria, la grilla -- sin duplicar una linea.
+        """
+        self.iniciar_dds()
+
     def iniciar_dds(self):
         from unitree_sdk2py.core.channel import ChannelFactoryInitialize
 
@@ -163,6 +203,71 @@ class SimuladorOficial:
         threading.Thread(target=bucle, daemon=True).start()
         if self.verboso:
             print("  [DDS] Espejo activo: rt/lf/lowstate (lo usa el TP05)")
+        self._publicar_bateria()
+
+    def _publicar_bateria(self) -> None:
+        """Publica el estado de la bateria en rt/lf/bmsstate.
+
+        En el G1 la bateria NO viaja dentro del LowState_: `unitree_hg` no
+        tiene `bms_state` (eso es del `unitree_go`). El robot real la manda en
+        un BmsState_ por su propio topico, y el dashboard del TP05 se quedaba
+        con el panel de bateria en cero para siempre.
+
+        La bateria es INVENTADA -- el simulador es cinematico y no consume
+        nada real -- pero baja despacio mientras el robot se mueve, que es lo
+        que hace falta para que un grafico de SOC tenga algo que mostrar.
+        """
+        import threading
+
+        from unitree_sdk2py.core.channel import ChannelPublisher
+
+        if self.robot.clave == "g1":
+            from unitree_sdk2py.idl.unitree_hg.msg.dds_ import BmsState_
+            from unitree_sdk2py.idl.default import (
+                unitree_hg_msg_dds__BmsState_ as _bms_vacio)
+        else:
+            from unitree_sdk2py.idl.unitree_go.msg.dds_ import BmsState_
+            from unitree_sdk2py.idl.default import (
+                unitree_go_msg_dds__BmsState_ as _bms_vacio)
+
+        # BmsState_() NO se puede construir vacio: el IDL exige los 13 campos
+        # como argumentos posicionales. Hay que pedirle uno a la fabrica de
+        # `idl.default` y despues mutarlo. Es la misma trampa que con
+        # MotorState_; si se construye a mano, el TypeError queda tapado por el
+        # try/except del hilo y la bateria no se publica NUNCA, sin un error.
+        try:
+            msg = _bms_vacio()
+            pub = ChannelPublisher("rt/lf/bmsstate", BmsState_)
+            pub.Init()
+        except Exception as exc:
+            if self.verboso:
+                print(f"  [DDS] No pude abrir rt/lf/bmsstate: {exc}")
+            return
+        self._pub_bms = pub
+
+        def bucle_bms():
+            aviso_dado = False
+            while True:
+                try:
+                    soc = int(self.telemetria.bateria)
+                    msg.soc = soc
+                    msg.soh = 98
+                    # Corriente negativa = descarga, como reporta el robot.
+                    moviendose = bool(self.mundo.leer().get("moviendose"))
+                    msg.current = -1200 if moviendose else -300
+                    _rellenar(msg, "cell_vol", lambda: 3700 + (soc - 50) * 4)
+                    _rellenar(msg, "temperature", lambda: 30)
+                    pub.Write(msg)
+                except Exception as exc:
+                    if not aviso_dado and self.verboso:
+                        aviso_dado = True
+                        print(f"  [DDS] Fallo la publicacion de bateria: "
+                              f"{type(exc).__name__}: {exc}")
+                time.sleep(0.5)   # 2 Hz: una bateria no cambia mas rapido
+
+        threading.Thread(target=bucle_bms, daemon=True).start()
+        if self.verboso:
+            print("  [DDS] Bateria activa: rt/lf/bmsstate (lo usa el TP05)")
 
     # ---------- pose ----------
     def _escribir_pose(self):
@@ -233,7 +338,7 @@ class SimuladorOficial:
                 cx = (self.mapa.columnas - 1) / 2 * self.mapa.tamano_celda
                 cy = -(self.mapa.filas - 1) / 2 * self.mapa.tamano_celda
                 v.cam.lookat[:] = [cx, cy, 0.0]
-            self.iniciar_dds()
+            self.iniciar_transporte()
             periodo = self.cfg.VIEWER_DT
             while v.is_running():
                 inicio = time.perf_counter()
@@ -249,7 +354,7 @@ class SimuladorOficial:
                     time.sleep(resto)
 
     def correr_sin_ventana(self):
-        self.iniciar_dds()
+        self.iniciar_transporte()
         while True:
             self.mundo.avanzar()
             self._escribir_pose()
@@ -282,8 +387,20 @@ class SimuladorOficial:
             if base_torque + i < len(self.data.sensordata):
                 self.data.sensordata[base_torque + i] = t
 
-        # Temperatura, bateria y fuerzas NO las publica el bridge oficial: se
-        # escriben directo en el mensaje que esta por salir.
+        # La inclinacion se guarda siempre: la usan los dos transportes.
+        self._inclinacion = self.telemetria.inclinacion(fase, moviendose)
+        self._yaw = float(estado.get("yaw", 0.0))
+        self._moviendose = moviendose
+        self._fase = fase
+
+        self._publicar_telemetria(estado, nu, fase, moviendose)
+
+    def _publicar_telemetria(self, estado, nu, fase, moviendose) -> None:
+        """Escribe la telemetria en el LowState_ que esta por salir por DDS.
+
+        Solo aplica al transporte DDS. En el modo local no hay LowState_: la
+        telemetria se sirve como diccionario por el socket.
+        """
         low = getattr(self.bridge, "low_state", None)
         if low is None:
             return
@@ -300,11 +417,9 @@ class SimuladorOficial:
             except (TypeError, ValueError, IndexError):
                 pass
 
-        # La inclinacion se guarda y la aplica el espejo al publicar. No se
-        # escribe aca porque el bridge oficial reescribe el cuaternion desde
-        # sensordata en su propio hilo, DESPUES de esto, y se perderia.
-        self._inclinacion = self.telemetria.inclinacion(fase, moviendose)
-        self._yaw = float(estado.get("yaw", 0.0))
+        # La inclinacion la aplica el espejo al publicar, no aca: el bridge
+        # oficial reescribe el cuaternion desde sensordata en su propio hilo,
+        # DESPUES de esto, y se perderia.
 
         if hasattr(low, "foot_force"):
             for i, f in enumerate(self.telemetria.fuerzas_de_pata(fase, 4, moviendose)):

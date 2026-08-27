@@ -11,6 +11,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import tempfile
 import signal
 import sys
 import threading
@@ -27,14 +28,78 @@ ARCHIVO_POSE = os.path.join(os.path.dirname(os.path.abspath(__file__)),
                             ".pose_actual.json")
 
 
-def _publicar_activo(robot, p, domain, interfaz, grilla=None):
+def _publicar_activo(robot, p, domain, interfaz, grilla=None, puerto=None):
+    """Deja escrito como encontrar al simulador. Lo lee `robot.py` del alumno."""
+    from .local import PUERTO
+
+    # `transporte` es lo que lee `robot.py` para saber por donde hablar. Sin
+    # este dato el cliente adivinaba, y con el simulador levantado en --dds
+    # se quedaba golpeando un socket que nadie abrio.
+    datos = {"robot": robot.clave, "materia": p.nombre.split("-")[0],
+             "transporte": "dds" if puerto is False else "local",
+             "domain": domain, "interfaz": interfaz,
+             "pose_archivo": ARCHIVO_POSE, "grilla": grilla,
+             "puerto": PUERTO if puerto in (None, False) else puerto}
     with open(ARCHIVO_ACTIVO, "w", encoding="utf-8") as f:
-        json.dump({"robot": robot.clave, "materia": p.nombre.split("-")[0],
-                   "domain": domain, "interfaz": interfaz,
-                   "pose_archivo": ARCHIVO_POSE, "grilla": grilla}, f)
+        json.dump(datos, f)
+
+
+# ---------------------------------------------------------------------------
+#  Un simulador por vez
+# ---------------------------------------------------------------------------
+#
+# Los siete paquetes hablan por DDS en el MISMO dominio (0) y la MISMA interfaz
+# (lo). Dos simuladores abiertos a la vez publican los dos en rt/lf/lowstate, y
+# el programa del alumno -- o el backend del TP04/TP05 -- se queda con el que
+# llegue, que puede ser el del otro robot.
+#
+# El sintoma es feisimo de diagnosticar: pediste el Go2 y el dashboard te
+# muestra 29 motores del G1, sin un solo error en ningun lado. Paso al probar.
+#
+# La sena es global (va al temp del sistema, no a la carpeta del paquete)
+# justamente porque el choque es ENTRE paquetes distintos.
+
+ARCHIVO_SENA = os.path.join(tempfile.gettempdir(), "uade_simulador_activo.json")
+
+
+def _sena_viva():
+    """El otro simulador anotado en la sena, si sigue vivo. Si no, None."""
+    try:
+        with open(ARCHIVO_SENA, encoding="utf-8") as f:
+            datos = json.load(f)
+        pid = int(datos["pid"])
+    except (OSError, ValueError, KeyError, TypeError):
+        return None
+    if pid == os.getpid():
+        return None
+    try:
+        # Senal 0: no hace nada, solo pregunta si el proceso existe.
+        os.kill(pid, 0)
+    except OSError:
+        return None      # murio mal y dejo la sena colgada: no bloquea
+    return datos
+
+
+def _dejar_sena(robot, materia: str) -> None:
+    try:
+        with open(ARCHIVO_SENA, "w", encoding="utf-8") as f:
+            json.dump({"pid": os.getpid(), "robot": robot.clave,
+                       "materia": materia}, f)
+    except OSError:
+        pass
+
+
+def _borrar_sena() -> None:
+    try:
+        datos = json.load(open(ARCHIVO_SENA, encoding="utf-8"))
+        if int(datos.get("pid", -1)) == os.getpid():
+            os.remove(ARCHIVO_SENA)
+    except (OSError, ValueError, TypeError):
+        pass
 
 
 def _limpiar():
+    _borrar_sena()
     for f in (ARCHIVO_ACTIVO, ARCHIVO_POSE):
         try:
             os.remove(f)
@@ -70,6 +135,13 @@ def main(argv=None) -> int:
                     help="TP05: deja el robot quieto en vez de pasearlo")
     ap.add_argument("--sin-ventana", action="store_true")
     ap.add_argument("--silencioso", action="store_true")
+    ap.add_argument("--dds", action="store_true",
+                    help="usa DDS y el SDK real en vez del socket local "
+                         "(solo Linux; para el banco de pruebas)")
+    ap.add_argument("--puerto", type=int, default=None,
+                    help="puerto del socket local (por defecto 8765)")
+    ap.add_argument("--igualmente", action="store_true",
+                    help="abre aunque parezca haber otro simulador andando")
     ap.add_argument("--solo-revisar", action="store_true",
                     help="revisa el entorno y sale")
     args = ap.parse_args(argv)
@@ -82,11 +154,34 @@ def main(argv=None) -> int:
         que = ("de la app" if args.materia == "tp04" else "del dashboard")
         extras = (("fastapi", f"el backend {que}"),
                   ("uvicorn", "el servidor del backend"))
-    r = verificar(instalar=not args.solo_revisar, extras=extras)
+    r = verificar(instalar=not args.solo_revisar, extras=extras,
+                  dds=args.dds)
     if not informar(r):
         return 1
     if args.solo_revisar:
         return 0
+
+    otro = None if args.igualmente else _sena_viva()
+    if otro:
+        print()
+        print("  ==========================================================")
+        print("  YA HAY UN SIMULADOR ABIERTO")
+        print("  ==========================================================")
+        print()
+        print(f"    Robot   : {otro.get('robot', '?')}")
+        print(f"    Materia : {otro.get('materia', '?')}")
+        print(f"    Proceso : {otro.get('pid', '?')}")
+        print()
+        print("  Los dos escuchan en el mismo puerto, asi que el segundo no")
+        print("  podria abrir, o peor: tu programa terminaria hablandole al")
+        print("  OTRO robot sin ningun error que te avise.")
+        print()
+        print("  Cerra la ventana del simulador que ya tenes abierta y volve")
+        print("  a intentar. Si estas seguro de que no hay ninguno, agrega")
+        print("  --igualmente al final del comando.")
+        print("  ==========================================================")
+        print()
+        return 1
 
     robot = obtener(args.robot)
     p = perfil(args.materia)
@@ -129,16 +224,33 @@ def main(argv=None) -> int:
             print("*" * 62)
             print()
 
-    from .arrancar import SimuladorOficial
-
+    # El transporte por defecto es el LOCAL (socket en 127.0.0.1).
+    #
+    # El camino DDS necesita CycloneDDS y `unitree_sdk2py`, que no se pueden
+    # instalar en macOS ni en Windows: CycloneDDS no publica wheels para
+    # Python 3.11+, y el SDK llama a `timerfd_create`, que es de Linux. Como el
+    # paquete se reparte, el que se reparte no puede ser ese.
+    #
+    # `--dds` deja el camino viejo a mano para la notebook de Teo y como banco
+    # de pruebas de alta fidelidad contra el SDK de verdad.
     try:
-        sim = SimuladorOficial(mundo, robot, r.repo, args.domain, args.interfaz,
-                               verboso=not args.silencioso, mapa=mapa)
+        if args.dds:
+            from .arrancar import SimuladorOficial
+            sim = SimuladorOficial(mundo, robot, r.repo, args.domain,
+                                   args.interfaz,
+                                   verboso=not args.silencioso, mapa=mapa)
+        else:
+            from .simulador import SimuladorLocal
+            sim = SimuladorLocal(mundo, robot, r.repo,
+                                 verboso=not args.silencioso, mapa=mapa,
+                                 puerto=args.puerto)
     except FileNotFoundError as exc:
         print(f"\n  ERROR: {exc}\n", file=sys.stderr)
         return 1
 
-    _publicar_activo(robot, p, args.domain, args.interfaz, args.grilla)
+    _publicar_activo(robot, p, args.domain, args.interfaz, args.grilla,
+                     puerto=(False if args.dds else args.puerto))
+    _dejar_sena(robot, args.materia)
     detener = threading.Event()
     threading.Thread(target=_publicar_pose, args=(mundo, detener),
                      daemon=True).start()
@@ -156,7 +268,12 @@ def main(argv=None) -> int:
               f"celda {mapa.tamano_celda} m)")
         print(f"  Recorrido : {tuple(mapa.inicio)} -> {tuple(mapa.destino)}, "
               f"mirando al {mapa.orientacion_inicial}")
-    print(f"  DDS       : dominio {args.domain}, interfaz {args.interfaz}")
+    if args.dds:
+        print(f"  Transporte: DDS, dominio {args.domain}, "
+              f"interfaz {args.interfaz}")
+    else:
+        from .local import HOST, PUERTO
+        print(f"  Transporte: local, {HOST}:{args.puerto or PUERTO}")
     print("=" * 62)
     print()
     print("  Deja esta ventana abierta y ejecuta tu programa aparte.")

@@ -1,3 +1,28 @@
+> # ⛔ ESTO NO ES PARA LOS LABORATORIOS DE LOS TPs
+>
+> **Si estás acá buscando cómo instalar tu TP, te equivocaste de carpeta.**
+>
+> Andá a **[`05LaboratoriosTPs/`](../../05LaboratoriosTPs/)**, entrá a la
+> carpeta de tu materia y seguí su `INSTALACION.md`. Los laboratorios se
+> instalan con **un solo `pip install mujoco`** y no necesitan nada de lo que
+> se explica más abajo.
+>
+> Lo de este documento es un **taller anterior, con otra arquitectura**. Pide
+> CycloneDDS y el SDK de Unitree, que **fallan en Windows y en macOS** con
+> Python 3.11 o más nuevo:
+>
+> - `cyclonedds==0.10.2` solo tiene paquetes precompilados hasta Python 3.10 →
+>   *"Could not locate cyclonedds"*
+> - el SDK llama a `timerfd_create`, que existe solo en Linux →
+>   *"symbol not found"*
+>
+> Ya hubo docentes que llegaron acá buscando su TP y perdieron una tarde.
+>
+> **Se conserva por valor histórico y de investigación. No se borra nada, pero
+> no lo uses para dar clase.**
+
+---
+
 # Unitree MuJoCo Oficial
 
 Integracion del simulador oficial de Unitree:
