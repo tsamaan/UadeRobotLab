@@ -132,6 +132,36 @@ idéntica con el robot real: el robot de verdad tarda en arrancar y frenar.
 
 ## Problemas frecuentes
 
+**`ERROR: could not create window` y después `Connection refused`**
+
+Es el caso más reportado, y **no cancela nada**. Pasa cuando la máquina no
+puede abrir una ventana 3D: una VM sin GPU, una sesión remota, o —muy
+típico en Linux— **usar Python de Anaconda/Miniconda**, que trae su propio
+`glfw` y choca con el del sistema. La pista es la palabra `EGL` en el error.
+
+El simulador **lo detecta y sigue en modo consola**, dibujando el recorrido
+del robot en texto. El backend levanta igual y la app del alumno funciona
+completa: para este TP la ventana 3D no aporta nada, porque lo que se mira
+es la app en el celular.
+
+Si igual querés la ventana, probá con el Python del sistema en vez del de
+conda:
+
+```bash
+conda deactivate
+python3 -m pip install --user mujoco
+./INICIAR_TP04.sh
+```
+
+> Si el error dice `Connection refused` pero **no** aparece antes
+> `could not create window`, entonces sí es otra cosa: el simulador no llegó
+> a levantar. Mirá las líneas de arriba en esa misma ventana.
+
+**No hace falta compilar ni instalar el SDK de Unitree.** Ni `unitree_sdk2`,
+ni `unitree_sdk2_python`, ni CycloneDDS, ni CMake. Este TP habla con el
+simulador por un socket local: alcanza con `pip install mujoco`. Si una guía
+te manda a compilar algo, es de una versión anterior.
+
 **La app del alumno no llega al backend** — casi siempre es la red, no el
 código. Que abra `http://<IP>:8000/docs` en el navegador **del celular**: si no
 carga, el celular no está en la misma red.

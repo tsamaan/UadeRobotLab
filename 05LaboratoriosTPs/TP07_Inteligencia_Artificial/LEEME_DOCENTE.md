@@ -161,6 +161,18 @@ Además, del lado del laboratorio físico:
 
 ## Problemas frecuentes
 
+**`ERROR: could not create window` / se abre sin ventana 3D**
+
+No cancela nada. Pasa en una VM sin GPU, por escritorio remoto, o —típico en
+Linux— usando Python de Anaconda/Miniconda, que trae su propio `glfw` (la
+pista es `EGL` en el error). El simulador **lo detecta y sigue en modo
+consola, dibujando el recorrido del robot en texto**, y el TP se hace
+completo. Si querés la ventana: `conda deactivate` y usar el Python del
+sistema.
+
+**No hace falta compilar ni instalar el SDK de Unitree**, ni CycloneDDS, ni
+CMake. Alcanza con `pip install mujoco`.
+
 **"El simulador ya está abierto" y no se ve nada** — quedó un proceso.
 Linux: `pkill -f "python.*-m sim"`.
 
