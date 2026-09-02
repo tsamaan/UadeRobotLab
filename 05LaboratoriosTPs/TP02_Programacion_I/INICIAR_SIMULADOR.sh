@@ -29,7 +29,10 @@ echo
 # Buscamos un Python que ademas pueda abrir la ventana 3D. Una maquina puede
 # tener varios Python y que solo uno tenga MuJoCo: si elegimos el primero que
 # aparece, el simulador arranca sin ventana y parece roto.
-CANDIDATOS="python3 python"
+# Se prueban en orden y gana el PRIMERO que tenga MuJoCo. Los nombres con
+# version explicita estan porque en algunas distros `python3` apunta a una
+# version vieja y la buena esta al lado.
+CANDIDATOS="python3 python3.13 python3.12 python3.11 python3.10 python"
 [ -x "$HOME/.venvs/unitree/bin/python" ] && CANDIDATOS="$HOME/.venvs/unitree/bin/python $CANDIDATOS"
 
 PYTHON=""; PRIMERO=""
@@ -41,7 +44,21 @@ done
 [ -z "$PYTHON" ] && PYTHON="$PRIMERO"
 
 if [ -z "$PYTHON" ]; then
-  echo "   ERROR: no encuentro Python. Instalalo desde https://python.org"
+  echo
+  echo "   ============================================================"
+  echo "   NO ENCUENTRO PYTHON"
+  echo "   ============================================================"
+  echo
+  echo "   En Ubuntu o Debian:"
+  echo "       sudo apt install python3 python3-pip"
+  echo
+  echo "   En Fedora:"
+  echo "       sudo dnf install python3 python3-pip"
+  echo
+  echo "   En macOS (con Homebrew):"
+  echo "       brew install python"
+  echo "   ============================================================"
+  echo
   read -r -p "   Enter para cerrar..."; exit 1
 fi
 

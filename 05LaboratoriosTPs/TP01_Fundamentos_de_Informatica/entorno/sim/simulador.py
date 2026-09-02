@@ -38,6 +38,16 @@ class SimuladorLocal(SimuladorOficial):
 
     # ---------- transporte ----------
     def iniciar_transporte(self):
+        """Levanta el socket. Es IDEMPOTENTE a proposito.
+
+        Si la ventana 3D se cae a mitad de camino, el simulador vuelve al modo
+        consola y ese camino llama de nuevo aca. Sin esta guarda, el segundo
+        intento chocaria con el puerto ya abierto y el simulador moriria por un
+        problema que ya habia sobrevivido.
+        """
+        if self.servidor is not None:
+            return
+
         from .local import PUERTO
 
         self.servidor = ServidorLocal(

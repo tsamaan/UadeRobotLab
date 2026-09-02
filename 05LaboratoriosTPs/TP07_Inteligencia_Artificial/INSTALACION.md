@@ -17,6 +17,7 @@ Si ya tenés todo instalado, andá directo a `LEEME_DOCENTE.md` o `LEEME_ESTUDIA
 |---|---|---|
 | **Python 3.10+** | ejecuta todo | del sistema |
 | **MuJoCo** | la ventana 3D donde ves el robot | `pip` |
+| **Visual C++ Redistributable** | sólo Windows: MuJoCo no carga sin él | descarga aparte |
 | **Modelos del G1 y el Go2** | el robot que ves en pantalla | **ya viene en el paquete** |
 | **Carpeta del laboratorio** | el TP en sí | `05LaboratoriosTPs/` |
 
@@ -94,6 +95,106 @@ Verificar:
 python3 -c "import mujoco; print(mujoco.__version__)"
 ```
 
+Ese comando es el que importa: **`pip install` puede terminar bien y aun así
+`import mujoco` fallar.** Si imprime un número de versión, está listo.
+
+---
+
+## Paso 2.b — Windows: el Visual C++ Redistributable
+
+> **Este paso es sólo para Windows, y es el que más problemas dio.**
+
+MuJoCo está escrito en C++ y necesita tres librerías del sistema que **no vienen
+con Windows ni con Python ni con MuJoCo**. Sin ellas, `pip install mujoco`
+termina **sin ningún error** y después `import mujoco` falla con:
+
+```
+ImportError: DLL load failed while importing _mujoco:
+No se puede encontrar el módulo especificado.
+```
+
+Y `INICIAR_SIMULADOR.bat` dice que MuJoCo no está instalado, cuando en realidad
+sí lo está. Es confuso a propósito de lo mal que informa Windows este caso.
+
+### Verificar si ya lo tenés
+
+En **PowerShell**:
+
+```powershell
+Test-Path "C:\Windows\System32\vcruntime140.dll"
+Test-Path "C:\Windows\System32\vcruntime140_1.dll"
+Test-Path "C:\Windows\System32\msvcp140.dll"
+```
+
+Los tres tienen que dar **`True`**.
+
+### Si alguno da False
+
+Descargá e instalá el **Microsoft Visual C++ Redistributable (x64)**:
+
+<https://aka.ms/vs/17/release/vc_redist.x64.exe>
+
+*(página oficial: [learn.microsoft.com](https://learn.microsoft.com/es-es/cpp/windows/latest-supported-vc-redist))*
+
+**Cerrá y volvé a abrir la consola** después de instalarlo, y probá otra vez
+`python -c "import mujoco; print(mujoco.__version__)"`.
+
+> Muchas computadoras ya lo tienen, porque lo instalan juegos y otros
+> programas. Por eso a algunos les funciona a la primera y a otros no.
+
+---
+
+## Paso 2.c — La ventana 3D y la placa de video
+
+MuJoCo dibuja con **OpenGL 3.3**. Que `import mujoco` funcione **no garantiza**
+que se pueda abrir la ventana.
+
+| Dónde | ¿Abre la ventana 3D? |
+|---|---|
+| Notebook o PC con placa **integrada** (Intel/AMD) | **Sí**, con los drivers de video al día |
+| PC con placa **dedicada** (NVIDIA/AMD) | Sí |
+| **Máquina virtual** sin GPU configurada | **No** |
+| Sesión por **escritorio remoto** | Normalmente no |
+
+**No hace falta una placa dedicada.** Una integrada moderna con sus drivers
+alcanza. Lo que falla es una VM sin aceleración gráfica, que no tiene ningún
+driver de OpenGL.
+
+Si no se puede abrir, vas a ver algo así:
+
+```
+GLFWError: (65542) b'WGL: The driver does not appear to support OpenGL'
+```
+
+### Eso NO cancela la clase
+
+El simulador **lo detecta y sigue funcionando en modo consola**: el programa del
+alumno corre igual, el robot se mueve igual, y **el recorrido se dibuja en la
+terminal**:
+
+```
++--------------------------------------------------+
+|          .................................       |
+|          .                               .       |
+|          .                               .       |
+|          o................................       |
+|          >                                       |
++--------------------------------------------------+
+  x=+0.00 m   y=-0.00 m   rumbo=-0 deg   [quieto]   bateria 87%
+  recorrido: 1.59 m      (sin ventana 3D: se dibuja en texto)
+```
+
+`o` es donde arrancó, `.` por dónde pasó y la flecha es hacia dónde mira ahora.
+Ese dibujo es un cuadrado de 0.40 m de lado hecho con `avanzar` y `girar`.
+
+**El TP se puede hacer completo sin ver el robot en 3D.**
+
+Si querés forzar ese modo directamente:
+
+```bash
+cd entorno && python3 -m sim --sin-ventana
+```
+
 ---
 
 ## Paso 3 — Los modelos del robot (ya están)
@@ -163,6 +264,18 @@ INICIAR_SIMULADOR.bat       # Windows
 
 ## Problemas frecuentes
 
+**Instalé MuJoCo pero dice que falta (Windows)**
+Falta el **Visual C++ Redistributable**. `pip` termina bien pero la librería no
+carga. Ver el **paso 2.b**. Es el problema más común en Windows.
+
+**`DLL load failed while importing _mujoco`**
+Lo mismo: paso 2.b.
+
+**`WGL: The driver does not appear to support OpenGL`**
+No hay soporte gráfico: casi siempre una máquina virtual sin GPU o una sesión
+remota. **El simulador sigue funcionando en modo consola** y el TP se puede
+hacer completo. Ver el paso 2.c.
+
 **`python no se reconoce como un comando` (Windows)**
 Python no quedó en el PATH. Reinstalalo tildando "Add Python to PATH".
 
@@ -218,5 +331,10 @@ cd 05LaboratoriosTPs/TP01_Fundamentos_de_Informatica && ./INICIAR_SIMULADOR.sh
 
 ```bat
 py -3 -m pip install --user mujoco
+py -3 -c "import mujoco; print(mujoco.__version__)"
 cd 05LaboratoriosTPs\TP01_Fundamentos_de_Informatica && INICIAR_SIMULADOR.bat
 ```
+
+Si el segundo comando falla, instalá el **Visual C++ Redistributable**
+(<https://aka.ms/vs/17/release/vc_redist.x64.exe>), cerrá la consola y volvé a
+probar. Ver el paso 2.b.

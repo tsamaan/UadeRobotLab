@@ -14,10 +14,10 @@ Laboratorios de robótica con robots Unitree para las materias de UADE.
 
 ---
 
-## Instalación, en dos pasos
+## Instalación
 
 Se hace **una sola vez** por computadora, y funciona igual en **Windows, macOS y
-Linux**.
+Linux**. Son dos pasos, más uno que sólo aplica a Windows.
 
 ### 1. Python
 
@@ -39,9 +39,72 @@ py -3 -m pip install mujoco
 python3 -m pip install mujoco
 ```
 
+**Verificá que haya quedado bien** — este comando es el que importa, porque
+`pip install` puede terminar sin errores y aun así fallar la carga:
+
+```bash
+# Windows
+py -3 -c "import mujoco; print(mujoco.__version__)"
+
+# macOS / Linux
+python3 -c "import mujoco; print(mujoco.__version__)"
+```
+
+### 3. Sólo en Windows: el Visual C++ Redistributable
+
+> **Es el problema número uno en Windows.** Si el comando de arriba falla con
+> `DLL load failed while importing _mujoco`, es esto.
+
+MuJoCo está escrito en C++ y necesita tres librerías del sistema que **no vienen
+con Windows, ni con Python, ni con MuJoCo**. Verificá en **PowerShell**:
+
+```powershell
+Test-Path "C:\Windows\System32\vcruntime140.dll"
+Test-Path "C:\Windows\System32\vcruntime140_1.dll"
+Test-Path "C:\Windows\System32\msvcp140.dll"
+```
+
+Los tres tienen que dar **`True`**. Si alguno da `False`, instalá:
+
+**<https://aka.ms/vs/17/release/vc_redist.x64.exe>**
+
+Después **cerrá y volvé a abrir la consola**.
+
+> Muchas máquinas ya lo tienen porque lo instalan juegos y otros programas. Por
+> eso a algunos les anda a la primera y a otros no.
+
 **Y eso es todo.** No hace falta nada más: ni CycloneDDS, ni el SDK de Unitree,
 ni compilar nada, ni tener internet después de bajar tu carpeta. Los modelos 3D
 del robot **ya vienen adentro**.
+
+### ¿Hace falta una placa de video dedicada?
+
+**No.** Una integrada (Intel o AMD) con sus drivers al día alcanza.
+
+| Dónde | ¿Abre la ventana 3D? |
+|---|---|
+| Notebook o PC con placa integrada | **Sí** |
+| PC con placa dedicada | Sí |
+| **Máquina virtual** sin GPU | **No** |
+| Escritorio remoto | Normalmente no |
+
+Si no se puede abrir la ventana, vas a ver
+`WGL: The driver does not appear to support OpenGL`. **No cancela la clase:** el
+simulador lo detecta y sigue en **modo consola**, dibujando el recorrido en la
+terminal.
+
+```
++--------------------------------------------------+
+|          .................................       |
+|          .                               .       |
+|          o................................       |
+|          >                                       |
++--------------------------------------------------+
+  x=+0.00 m   y=-0.00 m   rumbo=-0 deg   [quieto]
+  recorrido: 1.59 m      (sin ventana 3D: se dibuja en texto)
+```
+
+Ese dibujo es un cuadrado de 0.40 m de lado. El TP se puede hacer completo.
 
 > Si el `pip` falla con errores de certificado — típico en las redes de la
 > facultad — agregá:
@@ -122,8 +185,8 @@ dashboard que se conecta por HTTP, y el lanzador ya deja el backend andando.
 | `TP05_Desarrollo_de_Aplicaciones_II` | Desarrollo de Aplicaciones II | Un dashboard web de telemetría en vivo |
 | `TP07_Inteligencia_Artificial` | Inteligencia Artificial | Un agente que interpreta órdenes en castellano |
 
-Falta `TP06_Paradigma_Orientado_a_Objetos`: es Java puro y su modalidad
-principal no usa el robot.
+No hay `TP06_Paradigma_Orientado_a_Objetos`: ese TP es una traducción del SDK a
+una librería Java, se resuelve entero en el editor de código y no usa el robot.
 
 ### Anatomía de una carpeta
 
@@ -238,6 +301,15 @@ necesitan.**
 ---
 
 ## Problemas frecuentes
+
+**Instalé MuJoCo pero dice que falta (Windows)** · **`DLL load failed`**
+Falta el **Visual C++ Redistributable**: `pip` termina bien pero la librería no
+carga. Ver el paso 3 de la instalación. Es el problema más común en Windows.
+
+**`WGL: The driver does not appear to support OpenGL`**
+No hay soporte gráfico — casi siempre una máquina virtual o una sesión remota.
+**El simulador sigue funcionando en modo consola** y el TP se puede hacer
+completo.
 
 **`python` no se reconoce como un comando (Windows)**
 Python no quedó en el PATH. Reinstalalo tildando *"Add python.exe to PATH"*.

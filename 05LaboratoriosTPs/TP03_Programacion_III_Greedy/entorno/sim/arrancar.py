@@ -321,6 +321,41 @@ class SimuladorOficial:
 
     # ---------- bucles ----------
     def correr_con_ventana(self):
+        """Abre la ventana 3D. Si no se puede, sigue en consola.
+
+        Que el import de MuJoCo funcione NO garantiza que se pueda abrir una
+        ventana: hace falta un driver con OpenGL 3.3. En una maquina virtual sin
+        GPU, o por escritorio remoto, `launch_passive` muere con
+
+            GLFWError: (65542) WGL: The driver does not appear to support OpenGL
+            ERROR: could not create window
+
+        y hasta ahora eso mataba el simulador entero. No tiene por que: **el TP
+        se puede hacer completo sin ver el robot**, y perder la ventana es mucho
+        mejor que perder la clase.
+        """
+        try:
+            self._correr_con_ventana()
+        except Exception as exc:                              # noqa: BLE001
+            print()
+            print("*" * 62)
+            print("  NO SE PUDO ABRIR LA VENTANA 3D")
+            print("*" * 62)
+            print(f"  Motivo: {type(exc).__name__}: {str(exc).splitlines()[0]}")
+            print()
+            print("  Casi siempre es una de estas:")
+            print("    - una maquina virtual sin GPU configurada")
+            print("    - una sesion por escritorio remoto")
+            print("    - drivers de video sin soporte de OpenGL 3.3")
+            print()
+            print("  EL SIMULADOR SIGUE FUNCIONANDO, en modo consola:")
+            print("  el programa del alumno corre igual y la posicion del robot")
+            print("  se imprime como texto. El TP se puede hacer completo.")
+            print("*" * 62)
+            print()
+            self.correr_sin_ventana()
+
+    def _correr_con_ventana(self):
         import mujoco.viewer
 
         with mujoco.viewer.launch_passive(
@@ -354,11 +389,23 @@ class SimuladorOficial:
                     time.sleep(resto)
 
     def correr_sin_ventana(self):
+        """El bucle cuando no hay ventana 3D. Dibuja el recorrido en texto.
+
+        Antes esto no mostraba NADA: la consola quedaba muda mientras el robot
+        se movia. El alumno veia su programa imprimir "Avanzando..." y del otro
+        lado, silencio -- y no tenia forma de saber si el simulador lo estaba
+        escuchando. Ver `consola.py`.
+        """
+        from .consola import VistaConsola
+
+        vista = VistaConsola(verboso=self.verboso) if self.verboso else None
         self.iniciar_transporte()
         while True:
             self.mundo.avanzar()
             self._escribir_pose()
             self._volcar_avisos()
+            if vista is not None:
+                vista.actualizar(self.mundo.leer())
             time.sleep(self.cfg.VIEWER_DT)
 
     def _completar_telemetria(self, estado) -> None:

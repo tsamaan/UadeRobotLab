@@ -108,6 +108,57 @@ def _tiene(modulo: str) -> bool:
         return False
 
 
+# Las tres DLL que MuJoCo necesita en Windows y que NO vienen con Python.
+# Son parte del Visual C++ Redistributable de Microsoft.
+_DLLS_WINDOWS = ("vcruntime140.dll", "vcruntime140_1.dll", "msvcp140.dll")
+_URL_VCREDIST = "https://aka.ms/vs/17/release/vc_redist.x64.exe"
+
+
+def _faltan_dlls_windows() -> list[str]:
+    """Cuales de las DLL de Microsoft faltan. Vacio si estan todas o no es Windows."""
+    if os.name != "nt":
+        return []
+    import ctypes.util
+
+    faltantes = []
+    for dll in _DLLS_WINDOWS:
+        if ctypes.util.find_library(dll) is None and not os.path.exists(
+                os.path.join(os.environ.get("SystemRoot", r"C:\Windows"),
+                             "System32", dll)):
+            faltantes.append(dll)
+    return faltantes
+
+
+def diagnosticar_mujoco() -> tuple[bool, str]:
+    """Dice si MuJoCo se puede importar y, si no, POR QUE.
+
+    Existe porque `_tiene()` se traga la excepcion, y eso hacia un diagnostico
+    directamente falso: en Windows sin el Visual C++ Redistributable, `pip
+    install mujoco` termina **bien** pero `import mujoco` falla al cargar la
+    DLL. El chequeo decia "falta MuJoCo", intentaba instalarlo de nuevo -- pip
+    contestaba que ya estaba --, y volvia a decir que faltaba. Un profesor
+    perdio una tarde con eso.
+    """
+    try:
+        importlib.import_module("mujoco")
+        return True, ""
+    except ImportError as exc:
+        texto = str(exc)
+        faltan = _faltan_dlls_windows()
+        # "DLL load failed" es el sintoma clasico del redistribuible ausente.
+        if faltan or "DLL load failed" in texto:
+            detalle = ", ".join(faltan) if faltan else "las DLL de Microsoft"
+            return False, (
+                f"MuJoCo ESTA instalado, pero no puede cargarse: falta el\n"
+                f"      Microsoft Visual C++ Redistributable ({detalle}).\n"
+                f"      No viene con Python ni con MuJoCo; se instala aparte:\n"
+                f"        {_URL_VCREDIST}\n"
+                f"      Despues de instalarlo, cerra y volve a abrir la consola.")
+        return False, f"No se pudo importar MuJoCo: {texto}"
+    except Exception as exc:                                   # noqa: BLE001
+        return False, f"No se pudo importar MuJoCo: {exc}"
+
+
 def verificar(instalar: bool = True, extras: tuple[str, ...] = (),
               dds: bool = False) -> Resultado:
     """Revisa el entorno. `extras` son librerias que pide una materia puntual.
@@ -136,21 +187,30 @@ def verificar(instalar: bool = True, extras: tuple[str, ...] = (),
             "Tu Python es muy viejo. Instala uno nuevo desde https://python.org")
 
     # 2. MuJoCo (la ventana 3D)
-    if _tiene("mujoco"):
+    ok_mujoco, porque = diagnosticar_mujoco()
+    if ok_mujoco:
         import mujoco
         _ok("MuJoCo", f"v{mujoco.__version__}")
+    elif "Visual C++" in porque:
+        # Reinstalar no arregla nada: el paquete ya esta. Lo que falta es una
+        # dependencia del sistema operativo.
+        _falta("MuJoCo", "instalado pero no carga")
+        r.problemas.append(porque)
     elif instalar:
         _arreglando("Instalando MuJoCo (la ventana 3D)... puede tardar un minuto")
-        if _pip_install("mujoco") and _tiene("mujoco"):
+        _pip_install("mujoco")
+        ok_mujoco, porque = diagnosticar_mujoco()
+        if ok_mujoco:
             _ok("MuJoCo instalado")
         else:
             _falta("MuJoCo")
             r.problemas.append(
+                porque if "Visual C++" in porque else
                 f"No pude instalar MuJoCo. Proba a mano:\n"
                 f"      {sys.executable} -m pip install --user mujoco")
     else:
         _falta("MuJoCo")
-        r.problemas.append("Falta MuJoCo.")
+        r.problemas.append(porque or "Falta MuJoCo.")
 
     # 3 y 4. CycloneDDS y el SDK de Unitree: SOLO en modo --dds.
     #
