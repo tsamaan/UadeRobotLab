@@ -109,6 +109,36 @@ señalar al corregir.
 
 ## Problemas frecuentes
 
+**`ERROR: could not create window` y después `Connection refused`**
+
+Es el caso más reportado, y **no cancela nada**. Pasa cuando la máquina no
+puede abrir una ventana 3D: una VM sin GPU, una sesión remota, o —muy
+típico en Linux— **usar Python de Anaconda/Miniconda**, que trae su propio
+`glfw` y choca con el del sistema. La pista es la palabra `EGL` en el error.
+
+El simulador **lo detecta y sigue en modo consola**, dibujando el recorrido
+del robot en texto. El backend levanta igual y el dashboard del alumno
+recibe todos los datos: para este TP la ventana 3D no aporta nada, porque
+lo que se mira es el dashboard.
+
+Si igual querés la ventana, probá con el Python del sistema en vez del de
+conda:
+
+```bash
+conda deactivate
+python3 -m pip install --user mujoco
+./INICIAR_TP05.sh
+```
+
+> Si el error dice `Connection refused` pero **no** aparece antes
+> `could not create window`, entonces sí es otra cosa: el simulador no llegó
+> a levantar. Mirá las líneas de arriba en esa misma ventana.
+
+**No hace falta compilar ni instalar el SDK de Unitree.** Ni `unitree_sdk2`,
+ni `unitree_sdk2_python`, ni CycloneDDS, ni CMake. Este TP habla con el
+simulador por un socket local: alcanza con `pip install mujoco`. Si una guía
+te manda a compilar algo, es de una versión anterior.
+
 **No llega nada al dashboard** — que abra `http://<IP>:8001/telemetria` en el
 navegador. Si el JSON aparece, el problema es del código del alumno.
 

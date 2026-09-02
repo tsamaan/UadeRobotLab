@@ -347,10 +347,21 @@ class SimuladorOficial:
             print("    - una maquina virtual sin GPU configurada")
             print("    - una sesion por escritorio remoto")
             print("    - drivers de video sin soporte de OpenGL 3.3")
-            print()
+            # El caso de conda es aparte y da un error muy particular:
+            # conda trae su propio glfw y su propio libstdc++, que chocan con
+            # los del sistema. La pista es "EGL" en el mensaje.
+            if "EGL" in str(exc) and os.environ.get("CONDA_PREFIX"):
+                print("    - **conda**: trae su propio glfw y choca con el del")
+                print("      sistema. Es lo mas probable en tu caso.")
+                print()
+                print("  Si queres la ventana 3D, proba con el Python del")
+                print("  sistema en vez del de conda:")
+                print("      conda deactivate")
+                print("      python3 -m pip install --user mujoco")
+                print()
             print("  EL SIMULADOR SIGUE FUNCIONANDO, en modo consola:")
-            print("  el programa del alumno corre igual y la posicion del robot")
-            print("  se imprime como texto. El TP se puede hacer completo.")
+            print("  el programa del alumno corre igual y el recorrido del")
+            print("  robot se dibuja en texto. El TP se puede hacer completo.")
             print("*" * 62)
             print()
             self.correr_sin_ventana()
