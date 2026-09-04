@@ -65,7 +65,10 @@ class _Manejador(socketserver.StreamRequestHandler):
 
     def handle(self) -> None:
         while True:
-            linea = self.rfile.readline()
+            try:
+                linea = self.rfile.readline()
+            except (BrokenPipeError, ConnectionResetError, OSError):
+                return   # el alumno cerro su programa: no es un error del simulador
             if not linea:
                 return
             try:
