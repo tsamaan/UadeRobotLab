@@ -1,0 +1,91 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Telemetría Unitree — TP05</title>
+  <link rel="stylesheet" href="estilos.css">
+</head>
+<body>
+
+  <!-- 1. BARRA SUPERIOR: a qué robot estoy conectado y cómo -->
+  <header class="barra">
+    <div class="titulo">
+      <h1 id="robot-nombre">Telemetría Unitree</h1>
+      <span id="robot-detalle" class="sutil">sin conectar</span>
+    </div>
+
+    <form id="form-conexion" class="conexion">
+      <label for="ip">IP del backend</label>
+      <input id="ip" name="ip" value="localhost" autocomplete="off" spellcheck="false">
+      <button type="submit">Conectar</button>
+    </form>
+
+    <div class="estado">
+      <span id="estado" class="pastilla pastilla--apagado">desconectado</span>
+      <span id="frecuencia" class="sutil"></span>
+    </div>
+  </header>
+
+  <p id="aviso-simulador" class="aviso" hidden>
+    Estás viendo el <b>simulador</b>. Lo marcado como
+    <span class="marca marca--derivado">derivado</span> o
+    <span class="marca marca--inventado">inventado</span>
+    no es una medición: en el robot real esos números van a ser otros.
+  </p>
+
+  <!-- 2. LOS PANELES -->
+  <main class="grilla">
+
+    <section class="tarjeta">
+      <h2>Batería <span class="marca" data-origen="bms"></span></h2>
+      <div class="bateria"><div id="bateria-relleno" class="bateria__relleno"></div></div>
+      <p class="numero-grande"><span id="bateria-valor">--</span><small>%</small></p>
+    </section>
+
+    <section class="tarjeta">
+      <h2>Inclinación</h2>
+      <canvas id="horizonte" class="lienzo lienzo--cuadrado"></canvas>
+      <dl class="valores">
+        <div><dt>Roll <span class="marca" data-origen="roll"></span></dt><dd id="imu-roll">--</dd></div>
+        <div><dt>Pitch <span class="marca" data-origen="pitch"></span></dt><dd id="imu-pitch">--</dd></div>
+        <div><dt>Yaw <span class="marca" data-origen="yaw"></span></dt><dd id="imu-yaw">--</dd></div>
+      </dl>
+    </section>
+
+    <section class="tarjeta">
+      <h2>Patas apoyadas <span class="marca" data-origen="fuerzas"></span></h2>
+      <canvas id="patas" class="lienzo lienzo--cuadrado"></canvas>
+      <p id="patas-nota" class="sutil centrado"></p>
+    </section>
+
+    <section class="tarjeta tarjeta--ancha">
+      <h2>Ángulo de motores — últimos 30 s <span class="marca" data-origen="angulo"></span></h2>
+      <div id="selector-motores" class="chips" aria-label="Motores a graficar"></div>
+      <canvas id="grafico" class="lienzo lienzo--grafico"></canvas>
+    </section>
+
+    <section class="tarjeta tarjeta--ancha">
+      <h2>Motores</h2>
+      <div class="tabla-scroll">
+        <table>
+          <thead>
+            <tr>
+              <th>#</th>
+              <th>Motor</th>
+              <th class="num">Ángulo (°) <span class="marca" data-origen="angulo"></span></th>
+              <th class="num">Velocidad (rad/s) <span class="marca" data-origen="velocidad"></span></th>
+              <th class="num">Torque (Nm) <span class="marca" data-origen="torque"></span></th>
+              <th class="num">Temperatura (°C) <span class="marca" data-origen="temperatura"></span></th>
+            </tr>
+          </thead>
+          <tbody id="tabla-motores"></tbody>
+        </table>
+      </div>
+    </section>
+
+  </main>
+
+  <script src="app.js"></script>
+</body>
+</html>

@@ -1,0 +1,200 @@
+/* Tema oscuro: en el laboratorio se proyecta, y sobre fondo oscuro las
+   líneas de colores del gráfico se distinguen mejor. */
+:root {
+  --fondo: #0f1419;
+  --tarjeta: #182029;
+  --borde: #2a3440;
+  --texto: #e6edf3;
+  --sutil: #8b98a5;
+  --acento: #4da3ff;
+  --ok: #3fb950;
+  --tibio: #d29922;
+  --caliente: #f85149;
+  --derivado: #d29922;
+  --inventado: #bc8cff;
+  --real: #3fb950;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  padding: 0 16px 24px;
+  background: var(--fondo);
+  color: var(--texto);
+  font: 14px/1.4 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+}
+
+h1 { font-size: 18px; margin: 0; }
+h2 {
+  font-size: 13px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: .04em;
+  color: var(--sutil);
+  margin: 0 0 12px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.sutil { color: var(--sutil); font-size: 12px; }
+.centrado { text-align: center; }
+
+/* ---------- Barra superior ---------- */
+.barra {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px 24px;
+  padding: 14px 0;
+  border-bottom: 1px solid var(--borde);
+  margin-bottom: 16px;
+}
+.titulo { display: flex; flex-direction: column; }
+
+.conexion { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.conexion label { color: var(--sutil); font-size: 12px; }
+.conexion input {
+  width: 150px;
+  max-width: 100%;
+  padding: 6px 8px;
+  background: var(--fondo);
+  color: var(--texto);
+  border: 1px solid var(--borde);
+  border-radius: 6px;
+  font: inherit;
+}
+.conexion button {
+  padding: 6px 12px;
+  background: var(--acento);
+  color: #fff;
+  border: 0;
+  border-radius: 6px;
+  font: inherit;
+  cursor: pointer;
+}
+
+.estado { display: flex; align-items: center; gap: 10px; }
+.pastilla {
+  padding: 3px 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 600;
+}
+.pastilla--apagado   { background: #30363d; color: var(--sutil); }
+.pastilla--ok        { background: rgba(63,185,80,.18);  color: var(--ok); }
+.pastilla--polling   { background: rgba(77,163,255,.18); color: var(--acento); }
+.pastilla--viejo     { background: rgba(210,153,34,.18); color: var(--tibio); }
+.pastilla--error     { background: rgba(248,81,73,.18);  color: var(--caliente); }
+
+.aviso {
+  margin: 0 0 16px;
+  padding: 10px 14px;
+  border: 1px solid var(--borde);
+  border-left: 3px solid var(--derivado);
+  border-radius: 6px;
+  background: var(--tarjeta);
+  color: var(--sutil);
+}
+
+/* ---------- Marcas real / derivado / inventado ---------- */
+.marca {
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0;
+  text-transform: lowercase;
+  padding: 1px 6px;
+  border-radius: 4px;
+  border: 1px solid currentColor;
+}
+.marca:empty { display: none; }
+.marca--real      { color: var(--real); }
+.marca--derivado  { color: var(--derivado); }
+.marca--inventado { color: var(--inventado); }
+
+/* ---------- Grilla de tarjetas ---------- */
+.grilla {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 16px;
+}
+@media (max-width: 860px) {
+  .grilla { grid-template-columns: minmax(0, 1fr); }
+}
+.tarjeta {
+  background: var(--tarjeta);
+  border: 1px solid var(--borde);
+  border-radius: 10px;
+  padding: 16px;
+  min-width: 0;
+}
+.tarjeta--ancha { grid-column: 1 / -1; }
+
+.lienzo { display: block; width: 100%; }
+.lienzo--cuadrado { aspect-ratio: 1 / 1; max-height: 220px; }
+.lienzo--grafico  { height: 260px; }
+
+/* ---------- Batería ---------- */
+.bateria {
+  height: 28px;
+  border: 2px solid var(--borde);
+  border-radius: 6px;
+  padding: 3px;
+  margin-top: 24px;
+}
+.bateria__relleno {
+  height: 100%;
+  width: 0;
+  border-radius: 3px;
+  background: var(--ok);
+  transition: width .5s, background-color .5s;
+}
+.numero-grande {
+  font-size: 44px;
+  font-weight: 700;
+  margin: 16px 0 0;
+  font-variant-numeric: tabular-nums;
+}
+.numero-grande small { font-size: 20px; color: var(--sutil); margin-left: 2px; }
+
+/* ---------- IMU ---------- */
+.valores {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+  margin: 12px 0 0;
+}
+.valores dt { color: var(--sutil); font-size: 11px; display: flex; gap: 4px; align-items: center; flex-wrap: wrap; }
+.valores dd { margin: 2px 0 0; font-size: 18px; font-weight: 600; font-variant-numeric: tabular-nums; }
+
+/* ---------- Selector de motores ---------- */
+.chips { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 12px; }
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 10px;
+  border: 1px solid var(--borde);
+  border-radius: 999px;
+  font-size: 12px;
+  cursor: pointer;
+  user-select: none;
+  color: var(--sutil);
+}
+.chip input { display: none; }
+.chip__color { width: 10px; height: 10px; border-radius: 50%; background: var(--borde); }
+.chip--activo { color: var(--texto); border-color: var(--sutil); }
+
+/* ---------- Tabla ---------- */
+.tabla-scroll { overflow-x: auto; }
+table { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
+th, td { padding: 6px 10px; border-bottom: 1px solid var(--borde); text-align: left; white-space: nowrap; }
+th { color: var(--sutil); font-weight: 600; font-size: 12px; }
+th .marca { margin-left: 4px; }
+.num { text-align: right; }
+.temp { display: inline-block; min-width: 56px; padding: 1px 8px; border-radius: 4px; text-align: right; }
+.temp--ok       { background: rgba(63,185,80,.15);  color: var(--ok); }
+.temp--tibio    { background: rgba(210,153,34,.18); color: var(--tibio); }
+.temp--caliente { background: rgba(248,81,73,.2);   color: var(--caliente); }
